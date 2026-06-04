@@ -81,6 +81,7 @@ def benchmark_loto2_data_windows(results: Sequence[LotteryResult], split_ratio: 
                 "summary": payload,
             }
         )
+    evaluations.sort(key=lambda item: (-float(item["summary"]["evaluations"][0]["hit_rate"] if item.get("summary") and item["summary"].get("evaluations") else 0.0), -float(item["summary"]["evaluations"][0]["precision_at_k"] if item.get("summary") and item["summary"].get("evaluations") else 0.0), str(item["window"])))
     return {
         "target": "loto2",
         "split_ratio": split_ratio,
@@ -88,6 +89,67 @@ def benchmark_loto2_data_windows(results: Sequence[LotteryResult], split_ratio: 
         "min_train_size": min_train_size,
         "windows": evaluations,
         "best_window": evaluations[0] if evaluations else None,
+    }
+
+
+def rolling_loto2_walkforward_benchmark(results: Sequence[LotteryResult], target_name: str = "loto2", top_k: int = 3, min_train_size: int = 30, train_window_sizes: Sequence[int] = (45, 60, 90, 120)) -> Dict[str, object]:
+    rows: List[Dict[str, object]] = []
+    for train_window in train_window_sizes:
+        if len(results) <= max(min_train_size, train_window):
+            continue
+        hits = 0
+        precision_total = 0.0
+        test_count = 0
+        for split_index in range(max(min_train_size, train_window), len(results)):
+            train = list(results[max(0, split_index - train_window):split_index])
+            test_result = results[split_index]
+            model = train_ranking_model(train, target_name=target_name, top_k=top_k)
+            predicted = [number for number, _ in model.predict()]
+            actual = actual_targets(test_result, target_name)
+            universe_size = 10 ** model.number_width
+            hit, _, precision, _ = evaluate_prediction_set(predicted, actual, universe_size)
+            hits += hit
+            precision_total += precision
+            test_count += 1
+        if test_count:
+            rows.append(
+                {
+                    "train_window": train_window,
+                    "test_size": test_count,
+                    "hit_rate": hits / test_count,
+                    "precision_at_k": precision_total / test_count,
+                }
+            )
+    rows.sort(key=lambda item: (-float(item["hit_rate"]), -float(item["precision_at_k"]), int(item["train_window"])))
+    return {
+        "target": target_name,
+        "top_k": top_k,
+        "min_train_size": min_train_size,
+        "windows": rows,
+        "best_window": rows[0] if rows else None,
+    }
+
+
+def blend_model_rankings(rankings: Sequence[Sequence[Tuple[str, float]]]) -> List[Tuple[str, float]]:
+    combined: Dict[str, float] = {}
+    for ranking in rankings:
+        for rank, (candidate, _) in enumerate(ranking, start=1):
+            combined[candidate] = combined.get(candidate, 0.0) + 1.0 / rank
+    return sorted(combined.items(), key=lambda pair: (-pair[1], pair[0]))
+
+
+def ensemble_loto2_predictions(results: Sequence[LotteryResult], top_k: int, min_train_size: int = 30) -> Dict[str, object]:
+    train = list(results[:-1]) if len(results) > 1 else list(results)
+    weighted = train_ranking_model(train, target_name="loto2", top_k=top_k)
+    tuned = fit_tuned_ranking_model(train, target_name="loto2", top_k=top_k, min_train_size=min_train_size)
+    rankings = [weighted.predict(), tuned.predict()]
+    blended = blend_model_rankings(rankings)[:top_k]
+    return {
+        "target": "loto2",
+        "top_k": top_k,
+        "model": "rank-blend",
+        "top_predictions": blended,
+        "components": [weighted.predict(), tuned.predict()],
     }
 
 

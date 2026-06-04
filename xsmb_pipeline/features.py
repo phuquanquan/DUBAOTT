@@ -152,6 +152,45 @@ def recent_long_term_delta(results: List[LotteryResult], candidate: str, target_
     return recent - long_term
 
 
+def decay_weighted_frequency(results: List[LotteryResult], candidate: str, target_name: str, half_life: int = 14) -> float:
+    if not results:
+        return 0.0
+    total_weight = 0.0
+    weighted_hits = 0.0
+    for offset, result in enumerate(reversed(results), start=1):
+        weight = 0.5 ** ((offset - 1) / max(1, half_life))
+        total_weight += weight
+        if candidate in actual_targets(result, target_name):
+            weighted_hits += weight
+    return weighted_hits / total_weight if total_weight else 0.0
+
+
+def recency_gap_ratio(results: List[LotteryResult], candidate: str, target_name: str, short_window: int = 7, long_window: int = 30) -> float:
+    short_frequency = rolling_frequency(results, candidate, target_name, short_window)
+    long_frequency = rolling_frequency(results, candidate, target_name, long_window)
+    if long_frequency == 0.0:
+        return short_frequency
+    return short_frequency / long_frequency
+
+
+def recent_peak_frequency(results: List[LotteryResult], candidate: str, target_name: str) -> float:
+    return max(
+        rolling_frequency(results, candidate, target_name, 7),
+        rolling_frequency(results, candidate, target_name, 14),
+        rolling_frequency(results, candidate, target_name, 30),
+    )
+
+
+def recency_cluster_score(results: List[LotteryResult], candidate: str, target_name: str) -> float:
+    if len(results) < 2:
+        return 0.0
+    recent_hits = 0
+    for result in results[-14:]:
+        if candidate in actual_targets(result, target_name):
+            recent_hits += 1
+    return min(1.0, recent_hits / 3.0)
+
+
 def digit_sum_score(candidate: str) -> float:
     if not candidate:
         return 0.0

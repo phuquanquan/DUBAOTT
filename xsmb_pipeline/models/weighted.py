@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from itertools import product
 from typing import Dict, List, Sequence, Tuple
 
-from ..features import bridge_frequency, bridge_streak, digit_part_frequency, digit_position_frequency, digit_transition_score, gap_since_last_seen, head_frequency, recent_long_term_delta, recency_decay_score, repeated_digit_ratio, rolling_frequency, tail_frequency, unique_digit_ratio
+from ..features import bridge_frequency, bridge_streak, decay_weighted_frequency, digit_part_frequency, digit_position_frequency, digit_transition_score, gap_since_last_seen, head_frequency, recent_long_term_delta, recency_cluster_score, recency_decay_score, recency_gap_ratio, recent_peak_frequency, repeated_digit_ratio, rolling_frequency, tail_frequency, unique_digit_ratio
 from ..schema import LotteryResult
 from ..signals import ensemble_signal_score
 from ..targets import actual_targets, special_items_for_history, target_width
@@ -193,6 +193,10 @@ def score_candidate(results: Sequence[LotteryResult], candidate: str, target_nam
     score += weights.get("recency", 0.0) * recency_score(rows, candidate, target_name)
     score += weights.get("recency_decay", 0.0) * recency_decay_score(rows, candidate, target_name)
     score += weights.get("recent_delta", 0.0) * recent_long_term_delta(rows, candidate, target_name)
+    score += weights.get("decay_weighted", 0.0) * decay_weighted_frequency(rows, candidate, target_name)
+    score += weights.get("recency_gap_ratio", 0.0) * recency_gap_ratio(rows, candidate, target_name)
+    score += weights.get("recent_peak", 0.0) * recent_peak_frequency(rows, candidate, target_name)
+    score += weights.get("recency_cluster", 0.0) * recency_cluster_score(rows, candidate, target_name)
     score += weights.get("gap_penalty", 0.0) * gap_since_last_seen(rows, candidate, target_name)
     score += weights.get("bridge_frequency", 0.0) * bridge_frequency(rows, candidate)
     score += weights.get("bridge_streak", 0.0) * bridge_streak(rows, candidate)

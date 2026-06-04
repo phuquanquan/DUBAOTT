@@ -1,6 +1,6 @@
 import unittest
 
-from xsmb_pipeline.evaluate import benchmark_loto2_data_windows, compare_loto2_input_models, compare_loto2_models, evaluate_named_ranking_backtest, evaluate_tuned_weighted_backtest, loto2_data_windows, loto2_input_configurations
+from xsmb_pipeline.evaluate import benchmark_loto2_data_windows, blend_model_rankings, compare_loto2_input_models, compare_loto2_models, evaluate_named_ranking_backtest, evaluate_tuned_weighted_backtest, loto2_data_windows, loto2_input_configurations, rolling_loto2_walkforward_benchmark
 from xsmb_pipeline.models.sklearn_ranker import SKLEARN_AVAILABLE, available_model_names, fit_named_sklearn_ranking_model
 
 
@@ -107,6 +107,16 @@ class ModelBenchmarkTests(unittest.TestCase):
         self.assertTrue(payload["windows"])
         self.assertIn("window", payload["windows"][0])
         self.assertIn("best_model", payload["windows"][0])
+
+    def test_rolling_loto2_walkforward_benchmark_returns_train_windows(self):
+        payload = rolling_loto2_walkforward_benchmark(extended_sample_results(), top_k=3, min_train_size=3, train_window_sizes=(4, 6))
+        self.assertEqual(payload["target"], "loto2")
+        self.assertTrue(payload["windows"])
+        self.assertIn("train_window", payload["windows"][0])
+
+    def test_blend_model_rankings_prefers_high_rank_consensus(self):
+        blended = blend_model_rankings([[("01", 1.0), ("02", 0.9)], [("02", 1.0), ("01", 0.8)]])
+        self.assertEqual(blended[0][0], "01")
 
     def test_compare_loto2_models_includes_weighted_models(self):
         if SKLEARN_AVAILABLE:
