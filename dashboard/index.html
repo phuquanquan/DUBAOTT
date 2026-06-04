@@ -1,0 +1,537 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>XSMB Model Dashboard</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b1020;
+      --panel: rgba(17, 24, 39, 0.88);
+      --panel-2: rgba(30, 41, 59, 0.92);
+      --border: rgba(148, 163, 184, 0.18);
+      --text: #e5eefc;
+      --muted: #94a3b8;
+      --accent: #60a5fa;
+      --good: #34d399;
+      --warn: #fbbf24;
+      --bad: #f87171;
+      --chip: rgba(96, 165, 250, 0.16);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at top left, rgba(59, 130, 246, 0.22), transparent 30%),
+        radial-gradient(circle at top right, rgba(16, 185, 129, 0.14), transparent 25%),
+        linear-gradient(180deg, #050814, #0b1020 36%, #10182d 100%);
+      color: var(--text);
+    }
+    .app { max-width: 1480px; margin: 0 auto; padding: 24px; }
+    .hero {
+      display: grid;
+      grid-template-columns: 1.6fr 1fr;
+      gap: 16px;
+      align-items: stretch;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      backdrop-filter: blur(18px);
+      border-radius: 24px;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.24);
+    }
+    .hero-left, .hero-right { padding: 24px; }
+    h1 { margin: 0 0 8px; font-size: 32px; letter-spacing: -0.03em; }
+    .sub { color: var(--muted); line-height: 1.5; max-width: 860px; }
+    .toolbar { display:flex; gap:12px; flex-wrap:wrap; margin-top: 18px; }
+    .btn, .chip { border: 1px solid var(--border); background: var(--panel-2); color: var(--text); border-radius: 999px; padding: 10px 14px; }
+    .btn { cursor:pointer; text-decoration:none; }
+    .btn.primary { background: linear-gradient(135deg, #2563eb, #0ea5e9); border-color: transparent; }
+    .stats { display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .stat { padding: 16px; border-radius: 18px; background: var(--panel-2); border:1px solid var(--border); }
+    .stat .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .12em; }
+    .stat .value { font-size: 26px; margin-top: 8px; font-weight: 700; }
+    .section { margin-top: 18px; }
+    .section-head { display:flex; justify-content:space-between; align-items:center; margin: 18px 0 10px; }
+    .section-head h2 { margin:0; font-size: 18px; }
+    .grid-4 { display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 14px; }
+    .grid-2 { display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
+    .card { padding: 18px; border-radius: 20px; background: var(--panel); border:1px solid var(--border); }
+    .card-title { display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px; }
+    .title { font-size: 15px; font-weight: 650; }
+    .muted { color: var(--muted); }
+    .pred-list { display:flex; flex-wrap:wrap; gap:8px; }
+    .pred { padding: 10px 12px; border-radius: 16px; background: var(--chip); border:1px solid rgba(96,165,250,.22); min-width: 74px; text-align:center; }
+    .pred .num { font-size: 22px; font-weight: 800; }
+    .pred .score { font-size: 11px; color: var(--muted); }
+    table { width:100%; border-collapse: collapse; overflow:hidden; border-radius: 16px; }
+    th, td { padding: 12px 10px; border-bottom: 1px solid rgba(148,163,184,.12); text-align:left; }
+    th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing:.08em; }
+    tr:hover td { background: rgba(148,163,184,.04); }
+    .badge { padding: 6px 10px; border-radius: 999px; background: rgba(96,165,250,.14); border:1px solid rgba(96,165,250,.28); font-size: 12px; }
+    .badge.good { background: rgba(52,211,153,.14); border-color: rgba(52,211,153,.28); }
+    .badge.warn { background: rgba(251,191,36,.14); border-color: rgba(251,191,36,.28); }
+    .badge.bad { background: rgba(248,113,113,.14); border-color: rgba(248,113,113,.28); }
+    .bridge-row { display:grid; grid-template-columns: 120px 110px 100px 1fr 1fr 1fr; gap: 10px; align-items:center; padding: 10px 12px; border-radius: 14px; background: rgba(255,255,255,.02); margin-top: 8px; }
+    .progress { height: 8px; border-radius: 999px; background: rgba(148,163,184,.15); overflow:hidden; }
+    .progress > span { display:block; height:100%; background: linear-gradient(90deg, #60a5fa, #34d399); }
+    .chart { width: 100%; height: 340px; border-radius: 18px; background: linear-gradient(180deg, rgba(15,23,42,.9), rgba(15,23,42,.45)); border:1px solid var(--border); }
+    .tabs { display:flex; gap:10px; flex-wrap:wrap; }
+    .tab { cursor:pointer; padding: 10px 14px; border-radius: 999px; border:1px solid var(--border); background: rgba(255,255,255,.03); color: var(--text); }
+    .tab.active { background: linear-gradient(135deg, #2563eb, #0ea5e9); border-color: transparent; }
+    select { border: 1px solid var(--border); background: var(--panel-2); color: var(--text); border-radius: 12px; padding: 10px 12px; min-width: 150px; }
+    .controls { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom: 12px; }
+    .view { display:none; }
+    .view.active { display:block; }
+    .footer { margin: 20px 0 8px; color: var(--muted); font-size: 12px; text-align:center; }
+    @media (max-width: 1100px) {
+      .hero, .grid-4, .grid-2 { grid-template-columns: 1fr; }
+      .bridge-row { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="hero">
+      <div class="panel hero-left">
+        <h1>XSMB Model Dashboard</h1>
+        <div class="sub">Prediction, compare, bridge signals, and walk-forward charts in one place. Built to keep target cũ làm tham chiếu và highlight target đang có tín hiệu mạnh hơn như <b>loto2</b> và <b>loto3</b>.</div>
+        <div class="toolbar">
+          <button class="btn primary" id="loadBtn">Load payload</button>
+          <button class="btn" id="sampleBtn">Load sample</button>
+          <span class="chip" id="statusChip">No data loaded</span>
+        </div>
+      </div>
+      <div class="panel hero-right">
+        <div class="stats">
+          <div class="stat"><div class="label">Dataset size</div><div class="value" id="datasetSize">-</div></div>
+          <div class="stat"><div class="label">Latest date</div><div class="value" id="latestDate">-</div></div>
+          <div class="stat"><div class="label">Top K</div><div class="value" id="topK">-</div></div>
+          <div class="stat"><div class="label">Bridge signals</div><div class="value" id="bridgeCount">-</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section panel" style="padding:18px; margin-top:18px;">
+      <div class="section-head">
+        <h2>Views</h2>
+        <div class="tabs">
+          <button class="tab active" data-view="overview">Overview</button>
+          <button class="tab" data-view="predictions">Predictions</button>
+          <button class="tab" data-view="compare">Model Compare</button>
+          <button class="tab" data-view="signals">Signal Engine</button>
+          <button class="tab" data-view="signalBacktests">Signal Backtests</button>
+          <button class="tab" data-view="bridge">Bridge Signals</button>
+          <button class="tab" data-view="chart">Walk-forward</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="overview" class="view active section">
+      <div class="grid-4" id="overviewCards"></div>
+    </div>
+
+    <div id="predictions" class="view section">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title"><div class="title">Loto2</div><span class="badge good">main</span></div>
+          <div class="pred-list" id="loto2Preds"></div>
+        </div>
+        <div class="card">
+          <div class="card-title"><div class="title">Loto3</div><span class="badge good">main</span></div>
+          <div class="pred-list" id="loto3Preds"></div>
+        </div>
+        <div class="card">
+          <div class="card-title"><div class="title">Special2</div><span class="badge warn">reference</span></div>
+          <div class="pred-list" id="special2Preds"></div>
+        </div>
+        <div class="card">
+          <div class="card-title"><div class="title">Special3</div><span class="badge warn">reference</span></div>
+          <div class="pred-list" id="special3Preds"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="compare" class="view section">
+      <div class="card">
+        <div class="card-title"><div class="title">Model comparison</div><span class="muted">weighted vs sklearn</span></div>
+        <div style="overflow:auto;">
+          <table>
+            <thead>
+              <tr><th>Target</th><th>Weighted hit</th><th>Sklearn hit</th><th>Weighted precision</th><th>Sklearn precision</th><th>Winner</th></tr>
+            </thead>
+            <tbody id="compareBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="signals" class="view section">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title"><div class="title">Signal catalog</div><span class="muted">pluggable engine</span></div>
+          <div class="controls">
+            <select id="signalTargetSelect">
+              <option value="loto2">loto2</option>
+              <option value="loto3">loto3</option>
+              <option value="special2">special2</option>
+              <option value="special3">special3</option>
+            </select>
+            <select id="signalMethodSelect"></select>
+          </div>
+          <div style="overflow:auto;">
+            <table>
+              <thead>
+                <tr><th>Signal</th><th>Group</th><th>Weight</th></tr>
+              </thead>
+              <tbody id="signalCatalogBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title"><div class="title">Selected signal ranking</div><span class="muted" id="signalRankingMeta">-</span></div>
+          <div style="overflow:auto;">
+            <table>
+              <thead>
+                <tr><th>#</th><th>Candidate</th><th>Score</th><th>Details</th></tr>
+              </thead>
+              <tbody id="signalRankingBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="card section">
+        <div class="card-title"><div class="title">Ensemble candidate explanation</div><span class="muted">top signals in final model picks</span></div>
+        <div id="signalSummary"></div>
+      </div>
+    </div>
+
+    <div id="signalBacktests" class="view section">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title"><div class="title">Signal backtest leaderboard</div><span class="muted">walk-forward vs baselines</span></div>
+          <div class="controls">
+            <select id="signalBacktestTargetSelect">
+              <option value="loto2">loto2</option>
+              <option value="loto3">loto3</option>
+              <option value="special2">special2</option>
+              <option value="special3">special3</option>
+            </select>
+          </div>
+          <div style="overflow:auto;">
+            <table>
+              <thead>
+                <tr><th>Signal</th><th>Verdict</th><th>Hit rate</th><th>Freq hit</th><th>Win vs freq</th><th>Recent hit</th><th>Δ hit</th><th>Precision</th><th>Δ precision</th></tr>
+              </thead>
+              <tbody id="signalBacktestBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title"><div class="title">Best signal recent rows</div><span class="muted" id="signalBacktestMeta">-</span></div>
+          <div style="overflow:auto;">
+            <table>
+              <thead>
+                <tr><th>Date</th><th>Predicted</th><th>Actual</th><th>Hit</th><th>Precision</th></tr>
+              </thead>
+              <tbody id="signalBacktestRows"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="bridge" class="view section">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title"><div class="title">Bridge signals for Loto2</div><span class="muted">top candidates</span></div>
+          <div id="bridgeLoto2"></div>
+        </div>
+        <div class="card">
+          <div class="card-title"><div class="title">Bridge signals for Loto3</div><span class="muted">top candidates</span></div>
+          <div id="bridgeLoto3"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="chart" class="view section">
+      <div class="card">
+        <div class="card-title"><div class="title">Walk-forward hit rate</div><span class="muted">weighted / frequency / expected</span></div>
+        <canvas id="wfCanvas" class="chart" width="1200" height="340"></canvas>
+      </div>
+    </div>
+
+    <div class="footer">Dashboard reads pipeline payloads and keeps target cũ visible for reference.</div>
+  </div>
+
+  <script>
+    const sample = {
+      overview: { dataset_size: 142, latest_date: "03/06/2026", top_k: 5, min_train_size: 30, split_ratio: 0.8 },
+      predictions: {
+        loto2_top: [["12", 0.42], ["27", 0.40], ["31", 0.39], ["44", 0.38], ["86", 0.37]],
+        loto3_top: [["123", 0.21], ["247", 0.19], ["352", 0.18], ["401", 0.17], ["866", 0.16]],
+        special2_top: [["63", 0.08], ["28", 0.07], ["46", 0.07], ["17", 0.06], ["99", 0.06]],
+        special3_top: [["236", 0.04], ["517", 0.04], ["638", 0.03], ["901", 0.03], ["124", 0.03]],
+      },
+      compare: { comparisons: [
+        { target: "loto2", weighted: { hit_rate_pct: 82.8, precision_at_k_pct: 26.9 }, sklearn: { hit_rate_pct: 82.8, precision_at_k_pct: 24.8 }, best_hit_rate_model: "tie", best_precision_model: "weighted-ranking" },
+        { target: "loto3", weighted: { hit_rate_pct: 13.8, precision_at_k_pct: 2.8 }, sklearn: { hit_rate_pct: 10.3, precision_at_k_pct: 2.0 }, best_hit_rate_model: "weighted-ranking", best_precision_model: "weighted-ranking" },
+        { target: "special2", weighted: { hit_rate_pct: 0, precision_at_k_pct: 0 }, sklearn: { hit_rate_pct: 0, precision_at_k_pct: 0 }, best_hit_rate_model: "tie", best_precision_model: "tie" },
+        { target: "special3", weighted: { hit_rate_pct: 0, precision_at_k_pct: 0 }, sklearn: { hit_rate_pct: 0, precision_at_k_pct: 0 }, best_hit_rate_model: "tie", best_precision_model: "tie" },
+      ]},
+      bridge_signals: {
+        loto2: [
+          { candidate: "12", bridge_frequency: 0.42, bridge_streak: 3, digit_position_frequency: 0.31, digit_part_frequency: 0.28, digit_transition_score: 0.22 },
+          { candidate: "27", bridge_frequency: 0.38, bridge_streak: 2, digit_position_frequency: 0.29, digit_part_frequency: 0.24, digit_transition_score: 0.21 },
+        ],
+        loto3: [
+          { candidate: "123", bridge_frequency: 0.21, bridge_streak: 2, digit_position_frequency: 0.24, digit_part_frequency: 0.20, digit_transition_score: 0.15 },
+          { candidate: "247", bridge_frequency: 0.19, bridge_streak: 1, digit_position_frequency: 0.21, digit_part_frequency: 0.19, digit_transition_score: 0.13 },
+        ]
+      },
+      signal_engine: {
+        catalog: [
+          { name: "touch", label: "Cham", group: "cau", weight: 0.08 },
+          { name: "bridge", label: "Bridge", group: "cau", weight: 0.12 },
+          { name: "hot_trend", label: "Cau nong", group: "trend", weight: 0.10 },
+        ],
+        rankings: {
+          loto2: {
+            touch: [
+              { candidate: "12", score: 0.72, details: { matches: 31, total: 100 } },
+              { candidate: "27", score: 0.66, details: { matches: 28, total: 100 } },
+            ],
+            bridge: [
+              { candidate: "44", score: 0.61, details: { streak: 3 } },
+              { candidate: "86", score: 0.58, details: { streak: 2 } },
+            ],
+          },
+          loto3: {},
+          special2: {},
+          special3: {},
+        },
+        targets: {
+          loto2: [
+            { candidate: "12", target: "loto2", signal_score: 0.41, signals: [
+              { name: "bridge", score: 0.62, details: {} },
+              { name: "touch", score: 0.48, details: {} },
+              { name: "hot_trend", score: 0.36, details: {} },
+            ] }
+          ],
+          loto3: [],
+          special2: [],
+          special3: [],
+        }
+      },
+      signal_backtests: {
+        loto2: {
+          all: {
+            best_signal: "touch",
+            evaluations: [
+              { signal: "touch", hit_rate_pct: 82.8, frequency_hit_rate_pct: 74.1, hit_rate_delta_vs_frequency_pct: 8.7, precision_at_k_pct: 26.9, precision_delta_vs_frequency_pct: 5.2 },
+              { signal: "bridge", hit_rate_pct: 79.3, frequency_hit_rate_pct: 74.1, hit_rate_delta_vs_frequency_pct: 5.2, precision_at_k_pct: 24.4, precision_delta_vs_frequency_pct: 2.7 }
+            ],
+            rows: [
+              { date: "01/06/2026", predicted: ["12", "27", "31"], actual: ["12", "44"], hit: 1, precision: 0.33 },
+              { date: "02/06/2026", predicted: ["12", "44", "86"], actual: ["27", "44"], hit: 1, precision: 0.33 }
+            ]
+          },
+          ensemble: {
+            evaluation: { signal: "ensemble", hit_rate_pct: 81.0, frequency_hit_rate_pct: 74.1, hit_rate_delta_vs_frequency_pct: 6.9, precision_at_k_pct: 25.1, precision_delta_vs_frequency_pct: 3.4 }
+          }
+        },
+        loto3: { all: { best_signal: null, evaluations: [], rows: [] }, ensemble: { evaluation: { signal: "ensemble", hit_rate_pct: 0, frequency_hit_rate_pct: 0, hit_rate_delta_vs_frequency_pct: 0, precision_at_k_pct: 0, precision_delta_vs_frequency_pct: 0 } } },
+        special2: { all: { best_signal: null, evaluations: [], rows: [] }, ensemble: { evaluation: { signal: "ensemble", hit_rate_pct: 0, frequency_hit_rate_pct: 0, hit_rate_delta_vs_frequency_pct: 0, precision_at_k_pct: 0, precision_delta_vs_frequency_pct: 0 } } },
+        special3: { all: { best_signal: null, evaluations: [], rows: [] }, ensemble: { evaluation: { signal: "ensemble", hit_rate_pct: 0, frequency_hit_rate_pct: 0, hit_rate_delta_vs_frequency_pct: 0, precision_at_k_pct: 0, precision_delta_vs_frequency_pct: 0 } } }
+      },
+      walkforward: {
+        rows: Array.from({ length: 16 }, (_, i) => ({
+          date: `D${i+1}`,
+          hit: Math.round((i % 3 ? 1 : 0) * 10) / 10,
+          frequency_hit: Math.round((i % 4 ? 1 : 0) * 10) / 10,
+          baseline_hit: 0.1 + (i % 3) * 0.02,
+        }))
+      }
+    };
+    let state = sample;
+
+    const $ = id => document.getElementById(id);
+    function setStatus(text) { $('statusChip').textContent = text; }
+    function chipClass(n) { return n >= 70 ? 'good' : n >= 20 ? 'warn' : 'bad'; }
+    function renderPreds(id, rows) {
+      $(id).innerHTML = rows.map(([num, score]) => `<div class="pred"><div class="num">${num}</div><div class="score">${(score*100).toFixed(1)}%</div></div>`).join('');
+    }
+    function renderCompare() {
+      $('compareBody').innerHTML = state.compare.comparisons.map(c => `
+        <tr>
+          <td><span class="badge">${c.target}</span></td>
+          <td>${c.weighted.hit_rate_pct.toFixed(1)}%</td>
+          <td>${c.sklearn.hit_rate_pct.toFixed(1)}%</td>
+          <td>${c.weighted.precision_at_k_pct.toFixed(1)}%</td>
+          <td>${c.sklearn.precision_at_k_pct.toFixed(1)}%</td>
+          <td><span class="badge ${c.best_precision_model === 'weighted-ranking' ? 'good' : c.best_precision_model === 'tie' ? 'warn' : 'bad'}">${c.best_precision_model}</span></td>
+        </tr>`).join('');
+    }
+    function renderBridge() {
+      const render = rows => rows.map(r => `
+        <div class="bridge-row">
+          <div><b>${r.candidate}</b></div>
+          <div><span class="badge">streak ${r.bridge_streak}</span></div>
+          <div>${(r.bridge_frequency*100).toFixed(1)}%</div>
+          <div><div class="muted">position</div><div class="progress"><span style="width:${Math.min(100, r.digit_position_frequency*100)}%"></span></div></div>
+          <div><div class="muted">part</div><div class="progress"><span style="width:${Math.min(100, r.digit_part_frequency*100)}%"></span></div></div>
+          <div><div class="muted">transition</div><div class="progress"><span style="width:${Math.min(100, r.digit_transition_score*100)}%"></span></div></div>
+        </div>`).join('');
+      $('bridgeLoto2').innerHTML = render(state.bridge_signals.loto2 || []);
+      $('bridgeLoto3').innerHTML = render(state.bridge_signals.loto3 || []);
+    }
+    function renderSignals() {
+      const engine = state.signal_engine || { catalog: [], targets: {} };
+      const catalog = engine.catalog || [];
+      $('signalCatalogBody').innerHTML = (engine.catalog || []).map(s => `
+        <tr>
+          <td><span class="badge">${s.label || s.name}</span></td>
+          <td>${s.group || '-'}</td>
+          <td>${Number(s.weight || 0).toFixed(2)}</td>
+        </tr>`).join('');
+      const methodSelect = $('signalMethodSelect');
+      const previousMethod = methodSelect.value;
+      methodSelect.innerHTML = catalog.map(s => `<option value="${s.name}">${s.label || s.name}</option>`).join('');
+      if (previousMethod && catalog.some(s => s.name === previousMethod)) methodSelect.value = previousMethod;
+      renderSignalRanking();
+      const targets = engine.targets || {};
+      const rows = Object.entries(targets).flatMap(([target, candidates]) =>
+        (candidates || []).map(item => ({ target, ...item }))
+      );
+      $('signalSummary').innerHTML = rows.map(item => {
+        const topSignals = (item.signals || [])
+          .slice()
+          .sort((a, b) => (b.score || 0) - (a.score || 0))
+          .slice(0, 4)
+          .map(s => `<span class="badge">${s.name}: ${((s.score || 0) * 100).toFixed(1)}%</span>`)
+          .join(' ');
+        return `
+          <div class="bridge-row" style="grid-template-columns:80px 90px 100px 1fr;">
+            <div><b>${item.candidate}</b></div>
+            <div><span class="badge">${item.target}</span></div>
+            <div>${((item.signal_score || 0) * 100).toFixed(1)}%</div>
+            <div>${topSignals}</div>
+          </div>`;
+      }).join('');
+      renderSignalBacktests();
+    }
+    function renderSignalRanking() {
+      const engine = state.signal_engine || {};
+      const target = $('signalTargetSelect').value || 'loto2';
+      const signalName = $('signalMethodSelect').value || (engine.catalog?.[0]?.name);
+      const signal = (engine.catalog || []).find(item => item.name === signalName);
+      const rows = engine.rankings?.[target]?.[signalName] || [];
+      $('signalRankingMeta').textContent = `${target} / ${signal?.label || signalName || '-'}`;
+      $('signalRankingBody').innerHTML = rows.map((row, idx) => `
+        <tr>
+          <td>${idx + 1}</td>
+          <td><span class="badge">${row.candidate}</span></td>
+          <td>${((row.score || 0) * 100).toFixed(2)}%</td>
+          <td class="muted">${Object.entries(row.details || {}).slice(0, 4).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(',') : v}`).join(' | ')}</td>
+        </tr>`).join('');
+    }
+    function backtestDeltaClass(value) {
+      return value > 0 ? 'good' : value < 0 ? 'bad' : 'warn';
+    }
+    function renderSignalBacktests() {
+      const target = $('signalBacktestTargetSelect').value || 'loto2';
+      const payload = state.signal_backtests?.[target] || {};
+      const all = payload.all || { evaluations: [], rows: [], best_signal: null };
+      const evaluations = all.evaluations || [];
+      $('signalBacktestBody').innerHTML = evaluations.map(row => `
+        <tr>
+          <td><span class="badge">${row.signal}</span></td>
+          <td><span class="badge ${row.research_verdict === 'keep' ? 'good' : row.research_verdict === 'drop' ? 'bad' : 'warn'}">${row.research_verdict || 'watch'}</span></td>
+          <td>${Number(row.hit_rate_pct || 0).toFixed(1)}%</td>
+          <td>${Number(row.frequency_hit_rate_pct || 0).toFixed(1)}%</td>
+          <td>${Number(row.win_rate_vs_frequency_pct || 0).toFixed(1)}%</td>
+          <td>${Number(row.recent_hit_rate_pct || 0).toFixed(1)}%</td>
+          <td><span class="badge ${backtestDeltaClass(Number(row.hit_rate_delta_vs_frequency_pct || 0))}">${Number(row.hit_rate_delta_vs_frequency_pct || 0).toFixed(1)}%</span></td>
+          <td>${Number(row.precision_at_k_pct || 0).toFixed(1)}%</td>
+          <td><span class="badge ${backtestDeltaClass(Number(row.precision_delta_vs_frequency_pct || 0))}">${Number(row.precision_delta_vs_frequency_pct || 0).toFixed(1)}%</span></td>
+        </tr>`).join('');
+      const verdictCounts = all.verdict_counts || {};
+      $('signalBacktestMeta').textContent = `${target} / best: ${all.best_signal || '-'} / keep ${verdictCounts.keep || 0} · watch ${verdictCounts.watch || 0} · drop ${verdictCounts.drop || 0}`;
+      $('signalBacktestRows').innerHTML = (all.rows || []).map(row => `
+        <tr>
+          <td>${row.date}</td>
+          <td class="muted">${(row.predicted || []).join(', ')}</td>
+          <td>${(row.actual || []).join(', ')}</td>
+          <td><span class="badge ${row.hit ? 'good' : 'bad'}">${row.hit ? 'hit' : 'miss'}</span></td>
+          <td>${(Number(row.precision || 0) * 100).toFixed(1)}%</td>
+        </tr>`).join('');
+    }
+    function renderOverview() {
+      const o = state.overview;
+      $('datasetSize').textContent = o.dataset_size ?? '-';
+      $('latestDate').textContent = o.latest_date ?? '-';
+      $('topK').textContent = o.top_k ?? '-';
+      $('bridgeCount').textContent = (state.bridge_signals?.loto2?.length || 0) + (state.bridge_signals?.loto3?.length || 0);
+      $('overviewCards').innerHTML = [
+        ['Dataset size', o.dataset_size], ['Latest date', o.latest_date], ['Top K', o.top_k], ['Min train size', o.min_train_size],
+      ].map(([label, value]) => `<div class="card"><div class="muted">${label}</div><div style="font-size:28px;font-weight:800;margin-top:8px;">${value}</div></div>`).join('');
+    }
+    function drawChart() {
+      const canvas = $('wfCanvas');
+      const ctx = canvas.getContext('2d');
+      const { width, height } = canvas;
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(0, 0, width, height);
+      const rows = state.walkforward.rows || [];
+      const pad = 40;
+      const maxY = 1;
+      const series = [
+        { key: 'hit', color: '#60a5fa' },
+        { key: 'frequency_hit', color: '#34d399' },
+        { key: 'baseline_hit', color: '#fbbf24' },
+      ];
+      ctx.strokeStyle = 'rgba(148,163,184,.25)';
+      for (let i = 0; i <= 4; i++) {
+        const y = pad + (height - pad * 2) * i / 4;
+        ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(width - pad, y); ctx.stroke();
+      }
+      series.forEach(s => {
+        ctx.strokeStyle = s.color; ctx.lineWidth = 2; ctx.beginPath();
+        rows.forEach((row, idx) => {
+          const x = pad + (width - pad * 2) * idx / Math.max(1, rows.length - 1);
+          const y = height - pad - (height - pad * 2) * (row[s.key] ?? 0) / maxY;
+          if (idx === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+      });
+    }
+    function loadState(next) { state = next; renderOverview(); renderPreds('loto2Preds', state.predictions.loto2_top || []); renderPreds('loto3Preds', state.predictions.loto3_top || []); renderPreds('special2Preds', state.predictions.special2_top || []); renderPreds('special3Preds', state.predictions.special3_top || []); renderCompare(); renderBridge(); renderSignals(); drawChart(); setStatus('Loaded'); }
+    document.querySelectorAll('.tab').forEach(btn => btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById(btn.dataset.view).classList.add('active');
+    }));
+    $('sampleBtn').onclick = () => loadState(sample);
+    $('signalTargetSelect').onchange = renderSignalRanking;
+    $('signalMethodSelect').onchange = renderSignalRanking;
+    $('signalBacktestTargetSelect').onchange = renderSignalBacktests;
+    $('loadBtn').onclick = async () => {
+      try {
+        const res = await fetch('./dashboard-payload.json', { cache: 'no-store' });
+        if (!res.ok) throw new Error('Missing dashboard-payload.json');
+        loadState(await res.json());
+      } catch (err) {
+        setStatus('Sample only');
+        loadState(sample);
+      }
+    };
+    loadState(sample);
+  </script>
+</body>
+</html>
