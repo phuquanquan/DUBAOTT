@@ -958,36 +958,8 @@ def compare_loto2_models(results: Sequence[LotteryResult], split_ratio: float, t
     }
 
 
-def compare_models(results: Sequence[LotteryResult], split_ratio: float, top_k: int, min_train_size: int = 30, targets: Sequence[str] = ("loto2", "loto3", "special2", "special3")) -> Dict[str, object]:
-    comparisons: List[Dict[str, object]] = []
-    for target_name in targets:
-        weighted = evaluate_ranking_backtest(results, split_ratio=split_ratio, target_name=target_name, top_k=top_k)
-        sklearn = evaluate_sklearn_backtest(
-            results,
-            split_ratio=split_ratio,
-            target_name=target_name,
-            top_k=top_k,
-            min_train_size=min_train_size,
-        )
-        best_hit_rate_model = "tie" if weighted.hit_rate == sklearn.hit_rate else (weighted.model if weighted.hit_rate > sklearn.hit_rate else sklearn.model)
-        best_precision_model = "tie" if weighted.precision_at_k == sklearn.precision_at_k else (weighted.model if weighted.precision_at_k > sklearn.precision_at_k else sklearn.model)
-        row = {
-            "target": target_name,
-            "weighted": asdict(weighted),
-            "sklearn": asdict(sklearn),
-            "best_hit_rate_model": best_hit_rate_model,
-            "best_precision_model": best_precision_model,
-        }
-        if target_name == "loto2":
-            row["loto2_benchmark"] = compare_loto2_models(results, split_ratio=split_ratio, top_k=top_k, min_train_size=min_train_size)
-        comparisons.append(row)
-    return {
-        "dataset_size": len(results),
-        "split_ratio": split_ratio,
-        "top_k": top_k,
-        "min_train_size": min_train_size,
-        "comparisons": comparisons,
-    }
+def compare_models(results: Sequence[LotteryResult], split_ratio: float, top_k: int, min_train_size: int = 30) -> Dict[str, object]:
+    return compare_loto2_models(results, split_ratio=split_ratio, top_k=top_k, min_train_size=min_train_size)
 
 
 
@@ -1027,13 +999,7 @@ def walkforward_ranking_backtest(results: Sequence[LotteryResult], target_name: 
 
 
 def build_dashboard_payload(results: Sequence[LotteryResult], split_ratio: float = 0.8, top_k: int = 5, min_train_size: int = 30) -> Dict[str, object]:
-    predict_payload = predict_next_day(
-        results,
-        top_k_loto2=top_k,
-        top_k_loto3=top_k,
-        top_k_special2=top_k,
-        top_k_special3=top_k,
-    )
+    predict_payload = predict_next_day(results, top_k_loto2=top_k)
     compare_payload = compare_models(results, split_ratio=split_ratio, top_k=top_k, min_train_size=min_train_size)
     walkforward_min_train_size = max(min_train_size, len(results) - 40)
     walkforward_rows = walkforward_ranking_backtest(results, target_name="loto2", top_k=top_k, min_train_size=walkforward_min_train_size)
@@ -1062,15 +1028,14 @@ def build_bridge_payload(results: Sequence[LotteryResult], candidates: Sequence[
     payload: List[Dict[str, object]] = []
     rows = list(results)
     for candidate in candidates:
-        target_name = "loto3" if len(candidate) >= 3 else "loto2"
         payload.append(
             {
                 "candidate": candidate,
                 "bridge_frequency": bridge_frequency(rows, candidate),
                 "bridge_streak": bridge_streak(rows, candidate),
-                "digit_position_frequency": digit_position_frequency(rows, candidate, target_name),
-                "digit_part_frequency": digit_part_frequency(rows, candidate, target_name),
-                "digit_transition_score": digit_transition_score(rows, candidate, target_name),
+                "digit_position_frequency": digit_position_frequency(rows, candidate, "loto2"),
+                "digit_part_frequency": digit_part_frequency(rows, candidate, "loto2"),
+                "digit_transition_score": digit_transition_score(rows, candidate, "loto2"),
             }
         )
     return payload
@@ -1078,25 +1043,22 @@ def build_bridge_payload(results: Sequence[LotteryResult], candidates: Sequence[
 
 def enrich_dashboard_payload(results: Sequence[LotteryResult], payload: Dict[str, object]) -> Dict[str, object]:
     loto2_candidates = [number for number, _ in payload["predictions"]["loto2_top"]]
-    loto3_candidates = [number for number, _ in payload["predictions"]["loto3_top"]]
     payload["bridge_signals"] = {
         "loto2": build_bridge_payload(results, loto2_candidates),
-        "loto3": build_bridge_payload(results, loto3_candidates),
     }
     payload["signal_engine"] = build_signal_payload(results, payload["predictions"])
     return payload
 
 
-def build_signal_backtests_payload(results: Sequence[LotteryResult], top_k: int = 5, min_train_size: int = 30, targets: Sequence[str] = ("loto2", "loto3", "special2", "special3")) -> Dict[str, object]:
-    payload: Dict[str, object] = {}
-    for target_name in targets:
-        all_payload = all_signals_backtest(results, target_name=target_name, top_k=top_k, min_train_size=min_train_size, recent_rows=5)
-        ensemble_payload = ensemble_backtest(results, target_name=target_name, top_k=top_k, min_train_size=min_train_size, recent_rows=5)
-        payload[target_name] = {
+def build_signal_backtests_payload(results: Sequence[LotteryResult], top_k: int = 5, min_train_size: int = 30) -> Dict[str, object]:
+    all_payload = all_signals_backtest(results, target_name="loto2", top_k=top_k, min_train_size=min_train_size, recent_rows=5)
+    ensemble_payload = ensemble_backtest(results, target_name="loto2", top_k=top_k, min_train_size=min_train_size, recent_rows=5)
+    return {
+        "loto2": {
             "all": all_payload,
             "ensemble": ensemble_payload,
         }
-    return payload
+    }
 
 
 def build_full_dashboard_payload(results: Sequence[LotteryResult], split_ratio: float = 0.8, top_k: int = 5, min_train_size: int = 30) -> Dict[str, object]:

@@ -3,17 +3,28 @@ from __future__ import annotations
 from datetime import datetime
 from functools import lru_cache
 from math import log2
-from typing import List
+from statistics import mean, median
+from typing import Dict, List, Sequence
 
 from .dataset import flatten_numbers
 from .schema import LotteryResult
 from .targets import actual_targets, target_width
 
 
+_target_items_cache: Dict[tuple, List[str]] = {}
+
+
 def target_items(results: List[LotteryResult], target_name: str) -> List[str]:
+    key = (id(results[0]) if results else 0, len(results), target_name)
+    cached = _target_items_cache.get(key)
+    if cached is not None:
+        return cached
     items: List[str] = []
     for result in results:
         items.extend(actual_targets(result, target_name))
+    if len(_target_items_cache) > 256:
+        _target_items_cache.clear()
+    _target_items_cache[key] = items
     return items
 
 
@@ -232,3 +243,173 @@ def tail_frequency(results: List[LotteryResult], candidate: str, target_name: st
     tail = candidate[-1]
     matches = sum(1 for item in items if item.zfill(len(candidate))[-1] == tail)
     return matches / len(items)
+
+
+def falling_score(results: List[LotteryResult], candidate: str, target_name: str, lookback: int = 1) -> float:
+    """Lô rơi: candidate xuất hiện ở kỳ trước đó trong cùng target."""
+    if len(results) < 2:
+        return 0.0
+    for i in range(1, min(lookback, len(results)) + 1):
+        if candidate in actual_targets(results[-i], target_name):
+            return 1.0
+    return 0.0
+
+
+def falling_from_special(results: List[LotteryResult], candidate: str) -> float:
+    """Rơi từ ĐB: candidate là 2 số cuối của giải ĐB kỳ trước."""
+    if len(results) < 2:
+        return 0.0
+    prev_special = results[-2].special[-2:]
+    return 1.0 if candidate == prev_special else 0.0
+
+
+def falling_from_first(results: List[LotteryResult], candidate: str) -> float:
+    """Rơi từ G1: candidate là 2 số cuối của giải nhất kỳ trước."""
+    if len(results) < 2:
+        return 0.0
+    prev_first = results[-2].first[0][-2:] if results[-2].first else ""
+    return 1.0 if candidate == prev_first else 0.0
+
+
+def cham_frequency(results: List[LotteryResult], digit: str, target_name: str, lookback: int = 30) -> float:
+    """Tần suất chạm (chữ số) xuất hiện trong target."""
+    window = results[-lookback:] if len(results) > lookback else results
+    items = target_items(window, target_name)
+    if not items:
+        return 0.0
+    matches = sum(1 for item in items if digit in item)
+    return matches / len(items)
+
+
+def cham_match_score(results: List[LotteryResult], candidate: str, target_name: str, lookback: int = 30) -> float:
+    """Điểm chạm: trung bình tần suất các chữ số trong candidate."""
+    if not candidate:
+        return 0.0
+    scores = []
+    for ch in candidate:
+        scores.append(cham_frequency(results, ch, target_name, lookback))
+    return sum(scores) / len(scores) if scores else 0.0
+
+
+def tong_de_frequency(results: List[LotteryResult], total: int, lookback: int = 30) -> float:
+    """Tần suất tổng đề (tổng 2 số cuối giải ĐB) xuất hiện."""
+    window = results[-lookback:] if len(results) > lookback else results
+    if not window:
+        return 0.0
+    matches = 0
+    for result in window:
+        s = result.special[-2:]
+        if sum(int(ch) for ch in s) == total:
+            matches += 1
+    return matches / len(window)
+
+
+def tong_de_match_score(results: List[LotteryResult], candidate: str, lookback: int = 30) -> float:
+    """Candidate match với tổng đề phổ biến."""
+    if not candidate or len(candidate) < 2:
+        return 0.0
+    total = sum(int(ch) for ch in candidate[-2:])
+    return tong_de_frequency(results, total, lookback)
+
+
+def tong_lo_frequency(results: List[LotteryResult], total: int, target_name: str, lookback: int = 30) -> float:
+    """Tần suất tổng lô (tổng 2 số loto2) xuất hiện."""
+    window = results[-lookback:] if len(results) > lookback else results
+    items = target_items(window, target_name)
+    if not items:
+        return 0.0
+    matches = sum(1 for item in items if sum(int(ch) for ch in item) == total)
+    return matches / len(items) if items else 0.0
+
+
+def tong_lo_match_score(results: List[LotteryResult], candidate: str, target_name: str, lookback: int = 30) -> float:
+    """Candidate match với tổng lô phổ biến."""
+    if not candidate:
+        return 0.0
+    total = sum(int(ch) for ch in candidate)
+    return tong_lo_frequency(results, total, target_name, lookback)
+
+
+def gan_stats(results: List[LotteryResult], candidate: str, target_name: str) -> Dict[str, float]:
+    """Thống kê gan: độ dài các chu kỳ vắng mặt."""
+    gaps: List[int] = []
+    last_pos = -1
+    for i, result in enumerate(results):
+        if candidate in actual_targets(result, target_name):
+            if last_pos >= 0:
+                gaps.append(i - last_pos - 1)
+            last_pos = i
+    if not gaps:
+        return {"current_gap": len(results) - last_pos - 1 if last_pos >= 0 else len(results), "mean_gap": float("inf"), "max_gap": float("inf"), "min_gap": float("inf")}
+    return {
+        "current_gap": len(results) - last_pos - 1 if last_pos >= 0 else len(results) + 1,
+        "mean_gap": mean(gaps) if gaps else float("inf"),
+        "max_gap": max(gaps),
+        "min_gap": min(gaps),
+    }
+
+
+def gan_mean_score(results: List[LotteryResult], candidate: str, target_name: str) -> float:
+    """Điểm dựa trên gan trung bình: giá trị càng cao nếu gan TB càng lớn."""
+    stats = gan_stats(results, candidate, target_name)
+    mg = stats["mean_gap"]
+    if mg == float("inf") or mg <= 0:
+        return 0.0
+    return min(1.0, mg / 30.0)
+
+
+def gan_max_ratio(results: List[LotteryResult], candidate: str, target_name: str) -> float:
+    """Tỷ lệ gan max / gan hiện tại: gần 1.0 nghĩa là sắp chạm max."""
+    stats = gan_stats(results, candidate, target_name)
+    mx = stats["max_gap"]
+    if mx == float("inf") or mx <= 0:
+        return 0.0
+    return min(1.0, stats["current_gap"] / mx)
+
+
+def special_position_digits(result: LotteryResult, position: str) -> str:
+    """Trả về chữ số tại vị trí trong giải ĐB. VD: DB_V1 -> chữ số đầu, DB_V5 -> chữ số cuối."""
+    if position.startswith("DB_V"):
+        idx = int(position[4:]) - 1
+        if 0 <= idx < len(result.special):
+            return result.special[idx]
+    if position.startswith("G1_V"):
+        idx = int(position[4:]) - 1
+        if result.first and 0 <= idx < len(result.first[0]):
+            return result.first[0][idx]
+    return ""
+
+
+def position_frequency(results: List[LotteryResult], candidate: str, position: str, lookback: int = 30) -> float:
+    """Tần suất candidate có chứa chữ số xuất hiện tại vị trí cụ thể trong các giải."""
+    window = results[-lookback:] if len(results) > lookback else results
+    if not window:
+        return 0.0
+    matches = 0
+    for result in window:
+        pos_digit = special_position_digits(result, position)
+        if pos_digit and pos_digit in candidate:
+            matches += 1
+    return matches / len(window)
+
+
+def db_position_score(results: List[LotteryResult], candidate: str, target_name: str) -> float:
+    """Điểm tổng hợp từ tất cả vị trí trong ĐB."""
+    if not candidate:
+        return 0.0
+    score = 0.0
+    for i in range(1, 6):
+        freq = position_frequency(results, candidate, f"DB_V{i}")
+        score += freq
+    return score / 5.0
+
+
+def g1_position_score(results: List[LotteryResult], candidate: str, target_name: str) -> float:
+    """Điểm tổng hợp từ tất cả vị trí trong giải nhất."""
+    if not candidate:
+        return 0.0
+    score = 0.0
+    for i in range(1, 6):
+        freq = position_frequency(results, candidate, f"G1_V{i}")
+        score += freq
+    return score / 5.0

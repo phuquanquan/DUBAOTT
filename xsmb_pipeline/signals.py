@@ -5,7 +5,8 @@ from dataclasses import asdict, dataclass
 from datetime import datetime
 from typing import Callable, Dict, List, Sequence
 
-from .features import bridge_frequency, bridge_streak, digit_part_frequency, digit_position_frequency, digit_transition_score
+from .features import (
+    bridge_frequency, bridge_streak, cham_match_score, db_position_score, digit_part_frequency, digit_position_frequency, digit_transition_score, falling_from_first, falling_from_special, falling_score, g1_position_score, gan_max_ratio, gan_mean_score, rolling_frequency, target_items, tong_de_match_score, tong_lo_match_score)
 from .schema import LotteryResult
 from .targets import actual_targets, target_width
 
@@ -35,13 +36,6 @@ def clamp(value: float) -> float:
 
 def candidate_digits(candidate: str, width: int) -> List[int]:
     return [int(ch) for ch in candidate.zfill(width)]
-
-
-def target_items(results: Sequence[LotteryResult], target_name: str) -> List[str]:
-    items: List[str] = []
-    for result in results:
-        items.extend(actual_targets(result, target_name))
-    return items
 
 
 def candidate_universe_for_target(target_name: str) -> List[str]:
@@ -242,6 +236,76 @@ def day_cycle_score(results: Sequence[LotteryResult], candidate: str, target_nam
     return SignalScore("day_cycle", score, {"weekday": weekday, "total": len(items)})
 
 
+def falling_1d_score(results: Sequence[LotteryResult], candidate: str, target_name: str) -> SignalScore:
+    score = falling_score(list(results), candidate, target_name, lookback=1)
+    return SignalScore("falling_1d", score, {"lookback": 1})
+
+
+def falling_2d_score(results: Sequence[LotteryResult], candidate: str, target_name: str) -> SignalScore:
+    score = falling_score(list(results), candidate, target_name, lookback=2)
+    return SignalScore("falling_2d", score, {"lookback": 2})
+
+
+def falling_3d_score(results: Sequence[LotteryResult], candidate: str, target_name: str) -> SignalScore:
+    score = falling_score(list(results), candidate, target_name, lookback=3)
+    return SignalScore("falling_3d", score, {"lookback": 3})
+
+
+def falling_from_db_score(results: Sequence[LotteryResult], candidate: str, target_name: str) -> SignalScore:
+    score = falling_from_special(list(results), candidate)
+    return SignalScore("falling_from_db", score, {})
+
+
+def falling_from_g1_score(results: Sequence[LotteryResult], candidate: str, target_name: str) -> SignalScore:
+    score = falling_from_first(list(results), candidate)
+    return SignalScore("falling_from_g1", score, {})
+
+
+def cham_score(results: Sequence[LotteryResult], candidate: str, target_name: str) -> SignalScore:
+    score = clamp(cham_match_score(list(results), candidate, target_name))
+    return SignalScore("cham", score, {})
+
+
+def tong_de_score(results: Sequence[LotteryResult], candidate: str, target_name: str) -> SignalScore:
+    score = clamp(tong_de_match_score(list(results), candidate))
+    return SignalScore("tong_de", score, {})
+
+
+def tong_lo_score(results: Sequence[LotteryResult], candidate: str, target_name: str) -> SignalScore:
+    score = clamp(tong_lo_match_score(list(results), candidate, target_name))
+    return SignalScore("tong_lo", score, {})
+
+
+def db_pos_score(results: Sequence[LotteryResult], candidate: str, target_name: str) -> SignalScore:
+    score = clamp(db_position_score(list(results), candidate, target_name))
+    return SignalScore("db_position", score, {})
+
+
+def g1_pos_score(results: Sequence[LotteryResult], candidate: str, target_name: str) -> SignalScore:
+    score = clamp(g1_position_score(list(results), candidate, target_name))
+    return SignalScore("g1_position", score, {})
+
+
+def gan_mean_signal(results: Sequence[LotteryResult], candidate: str, target_name: str) -> SignalScore:
+    score = clamp(gan_mean_score(list(results), candidate, target_name))
+    return SignalScore("gan_mean", score, {})
+
+
+def gan_max_signal(results: Sequence[LotteryResult], candidate: str, target_name: str) -> SignalScore:
+    score = clamp(gan_max_ratio(list(results), candidate, target_name))
+    return SignalScore("gan_max_ratio", score, {})
+
+
+def freq_3d_score(results: Sequence[LotteryResult], candidate: str, target_name: str) -> SignalScore:
+    score = rolling_frequency(list(results), candidate, target_name, 3)
+    return SignalScore("freq_3d", score, {"window": 3})
+
+
+def freq_5d_score(results: Sequence[LotteryResult], candidate: str, target_name: str) -> SignalScore:
+    score = rolling_frequency(list(results), candidate, target_name, 5)
+    return SignalScore("freq_5d", score, {"window": 5})
+
+
 SIGNAL_DEFINITIONS: List[SignalDefinition] = [
     SignalDefinition("touch", "Cham", "cau", 0.08, touch_score),
     SignalDefinition("inversion", "Dao so", "cau", 0.06, inversion_score),
@@ -259,6 +323,20 @@ SIGNAL_DEFINITIONS: List[SignalDefinition] = [
     SignalDefinition("mod10_balance", "Bu tru mod 10", "math", 0.05, mod10_balance_score),
     SignalDefinition("digit_band", "Hang chuc/tram", "digit", 0.05, digit_band_score),
     SignalDefinition("day_cycle", "Chu ky ngay", "cycle", 0.04, day_cycle_score),
+    SignalDefinition("falling_1d", "Lo roi 1 ngay", "roi", 0.06, falling_1d_score),
+    SignalDefinition("falling_2d", "Lo roi 2 ngay", "roi", 0.04, falling_2d_score),
+    SignalDefinition("falling_3d", "Lo roi 3 ngay", "roi", 0.03, falling_3d_score),
+    SignalDefinition("falling_from_db", "Roi tu DB", "roi", 0.05, falling_from_db_score),
+    SignalDefinition("falling_from_g1", "Roi tu G1", "roi", 0.04, falling_from_g1_score),
+    SignalDefinition("cham", "Cham chu so", "digit", 0.06, cham_score),
+    SignalDefinition("tong_de", "Tong de", "tong", 0.04, tong_de_score),
+    SignalDefinition("tong_lo", "Tong lo", "tong", 0.04, tong_lo_score),
+    SignalDefinition("db_position", "Vi tri DB", "vitri", 0.05, db_pos_score),
+    SignalDefinition("g1_position", "Vi tri G1", "vitri", 0.05, g1_pos_score),
+    SignalDefinition("gan_mean", "Gan trung binh", "gan", 0.04, gan_mean_signal),
+    SignalDefinition("gan_max_ratio", "Gan max ratio", "gan", 0.04, gan_max_signal),
+    SignalDefinition("freq_3d", "Tan suat 3 ngay", "freq", 0.05, freq_3d_score),
+    SignalDefinition("freq_5d", "Tan suat 5 ngay", "freq", 0.04, freq_5d_score),
 ]
 
 
@@ -276,59 +354,37 @@ MODEL_SIGNAL_NAMES = {
 
 
 TARGET_MODEL_SIGNAL_NAMES = {
-    "loto2": {"symmetry"},
-    "loto3": set(MODEL_SIGNAL_NAMES),
-    "special2": set(MODEL_SIGNAL_NAMES),
-    "special3": set(MODEL_SIGNAL_NAMES),
+    "loto2": MODEL_SIGNAL_NAMES | {"touch", "inversion", "position", "head_tail_link", "cham", "db_position", "g1_position"},
 }
 
 
 TARGET_ENSEMBLE_SIGNAL_NAMES = {
-    "loto2": {"symmetry"},
-    "loto3": {
+    "loto2": {
         "touch",
         "inversion",
-        "fibonacci",
-        "pascal",
+        "composition",
         "shape",
+        "bridge",
+        "position",
         "hot_trend",
         "cold_return",
-        "symmetry",
         "head_tail_link",
-        "repeat_pair",
-        "mod10_balance",
         "digit_band",
         "day_cycle",
-    },
-    "special2": {
-        "touch",
-        "inversion",
-        "fibonacci",
-        "pascal",
-        "shape",
-        "hot_trend",
-        "cold_return",
-        "symmetry",
-        "head_tail_link",
-        "repeat_pair",
-        "mod10_balance",
-        "digit_band",
-        "day_cycle",
-    },
-    "special3": {
-        "touch",
-        "inversion",
-        "fibonacci",
-        "pascal",
-        "shape",
-        "hot_trend",
-        "cold_return",
-        "symmetry",
-        "head_tail_link",
-        "repeat_pair",
-        "mod10_balance",
-        "digit_band",
-        "day_cycle",
+        "falling_1d",
+        "falling_2d",
+        "falling_3d",
+        "falling_from_db",
+        "falling_from_g1",
+        "cham",
+        "tong_de",
+        "tong_lo",
+        "db_position",
+        "g1_position",
+        "gan_mean",
+        "gan_max_ratio",
+        "freq_3d",
+        "freq_5d",
     },
 }
 
@@ -363,6 +419,20 @@ MODEL_ENSEMBLE_SIGNAL_NAMES = {
     "mod10_balance",
     "digit_band",
     "day_cycle",
+    "falling_1d",
+    "falling_2d",
+    "falling_3d",
+    "falling_from_db",
+    "falling_from_g1",
+    "cham",
+    "tong_de",
+    "tong_lo",
+    "db_position",
+    "g1_position",
+    "gan_mean",
+    "gan_max_ratio",
+    "freq_3d",
+    "freq_5d",
 }
 
 
@@ -463,12 +533,9 @@ def rank_signal(results: Sequence[LotteryResult], target_name: str, signal_name:
 
 
 def build_signal_rankings(results: Sequence[LotteryResult], top_n: int = 20) -> Dict[str, object]:
-    targets = ("loto2", "loto3", "special2", "special3")
     payload: Dict[str, object] = {}
-    for target_name in targets:
-        payload[target_name] = {}
-        for definition in SIGNAL_DEFINITIONS:
-            payload[target_name][definition.name] = rank_signal(results, target_name, definition.name, top_n=top_n)
+    for definition in SIGNAL_DEFINITIONS:
+        payload[definition.name] = rank_signal(results, "loto2", definition.name, top_n=top_n)
     return payload
 
 
@@ -486,13 +553,7 @@ def summarize_signals(results: Sequence[LotteryResult], candidate: str, target_n
 
 
 def build_signal_payload(results: Sequence[LotteryResult], predictions: Dict[str, object]) -> Dict[str, object]:
+    loto2_rows = predictions.get("loto2_top", [])
     payload: Dict[str, object] = {"catalog": signal_catalog(), "targets": {}, "rankings": build_signal_rankings(results)}
-    mapping = {
-        "loto2": predictions.get("loto2_top", []),
-        "loto3": predictions.get("loto3_top", []),
-        "special2": predictions.get("special2_top", []),
-        "special3": predictions.get("special3_top", []),
-    }
-    for target_name, rows in mapping.items():
-        payload["targets"][target_name] = [summarize_signals(results, number, target_name) for number, _ in rows]
+    payload["targets"]["loto2"] = [summarize_signals(results, number, "loto2") for number, _ in loto2_rows]
     return payload

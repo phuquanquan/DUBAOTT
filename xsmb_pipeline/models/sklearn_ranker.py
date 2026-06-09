@@ -56,9 +56,7 @@ def model_is_available(model_name: str) -> bool:
 
 
 def benchmarkable_model_names(target_name: str) -> List[str]:
-    if target_name == "loto2":
-        return ["logistic", "random_forest", "extra_trees", "mlp"]
-    return ["logistic"]
+    return ["logistic", "random_forest", "extra_trees", "mlp"]
 
 
 def build_estimator(model_name: str) -> Any:

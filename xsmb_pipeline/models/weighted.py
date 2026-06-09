@@ -36,58 +36,7 @@ FEATURE_WEIGHTS = {
         "tail_frequency": 0.12,
         "repeat_ratio": 0.04,
         "unique_ratio": 0.03,
-        "signal_ensemble": 0.14,
-    },
-    "loto3": {
-        "history": 0.08,
-        "window_7": 0.18,
-        "window_30": 0.14,
-        "window_60": 0.10,
-        "window_90": 0.08,
-        "window_200": 0.05,
-        "special_history": 0.06,
-        "special_window_30": 0.04,
-        "recency": 0.08,
-        "bridge_frequency": 0.12,
-        "bridge_streak": 0.05,
-        "digit_position": 0.06,
-        "digit_parts": 0.08,
-        "digit_transition": 0.06,
-        "signal_ensemble": 0.16,
-    },
-    "special2": {
-        "history": 0.18,
-        "window_7": 0.18,
-        "window_30": 0.22,
-        "window_60": 0.12,
-        "window_90": 0.08,
-        "window_200": 0.05,
-        "special_history": 0.28,
-        "special_window_30": 0.12,
-        "recency": 0.10,
-        "bridge_frequency": 0.08,
-        "bridge_streak": 0.03,
-        "digit_position": 0.03,
-        "digit_parts": 0.04,
-        "digit_transition": 0.02,
-        "signal_ensemble": 0.10,
-    },
-    "special3": {
-        "history": 0.08,
-        "window_7": 0.10,
-        "window_30": 0.16,
-        "window_60": 0.12,
-        "window_90": 0.10,
-        "window_200": 0.08,
-        "special_history": 0.42,
-        "special_window_30": 0.22,
-        "recency": 0.08,
-        "bridge_frequency": 0.10,
-        "bridge_streak": 0.04,
-        "digit_position": 0.04,
-        "digit_parts": 0.05,
-        "digit_transition": 0.03,
-        "signal_ensemble": 0.14,
+        "signal_ensemble": 0.22,
     },
 }
 
@@ -231,7 +180,7 @@ def train_ranking_model(results: Sequence[LotteryResult], target_name: str, top_
     )
 
 
-def score_weight_config(results: Sequence[LotteryResult], target_name: str, top_k: int, weights: Dict[str, float], min_train_size: int = 30) -> float:
+def score_weight_config(results: Sequence[LotteryResult], target_name: str, top_k: int, weights: Dict[str, float], min_train_size: int = 30, max_tune_steps: int = 60) -> float:
     if len(results) <= min_train_size:
         return 0.0
     hit_total = 0.0
@@ -240,7 +189,9 @@ def score_weight_config(results: Sequence[LotteryResult], target_name: str, top_
     steps = 0
     width = target_width(target_name)
     universe_size = 10 ** width
-    for split_index in range(min_train_size, len(results)):
+    all_indices = list(range(min_train_size, len(results)))
+    tune_indices = all_indices[-max_tune_steps:] if len(all_indices) > max_tune_steps else all_indices
+    for split_index in tune_indices:
         train = list(results[:split_index])
         test = results[split_index]
         model = train_ranking_model(train, target_name=target_name, top_k=top_k, weights=weights)
@@ -261,20 +212,18 @@ def score_weight_config(results: Sequence[LotteryResult], target_name: str, top_
 
 def loto2_weight_candidates() -> Dict[str, List[float]]:
     return {
-        "history": [0.05, 0.10, 0.15, 0.20, 0.25],
-        "window_7": [0.10, 0.15, 0.20, 0.25, 0.30],
-        "window_14": [0.0, 0.05, 0.10, 0.15, 0.20],
-        "window_30": [0.05, 0.10, 0.15, 0.20, 0.25],
-        "window_60": [0.0, 0.03, 0.05, 0.08, 0.10],
-        "recency": [0.05, 0.10, 0.15, 0.20],
-        "recency_decay": [0.0, 0.05, 0.10, 0.15, 0.20],
-        "recent_delta": [0.0, 0.05, 0.10, 0.15],
-        "gap_penalty": [-0.08, -0.05, -0.03, -0.01, 0.0],
-        "head_frequency": [0.0, 0.05, 0.10, 0.15],
-        "tail_frequency": [0.0, 0.05, 0.10, 0.15, 0.20],
-        "repeat_ratio": [0.0, 0.02, 0.04, 0.06],
-        "unique_ratio": [0.0, 0.02, 0.04, 0.06],
-        "signal_ensemble": [0.0, 0.05, 0.10, 0.15, 0.20],
+        "history": [0.08, 0.14, 0.22],
+        "window_7": [0.20, 0.30, 0.38],
+        "window_14": [0.05, 0.12, 0.20],
+        "window_30": [0.10, 0.22, 0.30],
+        "window_60": [0.03, 0.08, 0.12],
+        "recency": [0.08, 0.14, 0.20],
+        "recency_decay": [0.05, 0.12, 0.18],
+        "recent_delta": [0.0, 0.08, 0.14],
+        "gap_penalty": [-0.05, -0.02, 0.0],
+        "head_frequency": [0.05, 0.10, 0.15],
+        "tail_frequency": [0.05, 0.12, 0.18],
+        "signal_ensemble": [0.10, 0.18, 0.26],
     }
 
 
@@ -369,27 +318,15 @@ def build_prediction(model_name: str, model: RankingModel, metadata: Dict[str, o
     )
 
 
-def predict_next_day(results: Sequence[LotteryResult], top_k_loto2: int, top_k_loto3: int, top_k_special2: int, top_k_special3: int, tuned: bool = False) -> Dict[str, object]:
+def predict_next_day(results: Sequence[LotteryResult], top_k_loto2: int, tuned: bool = False) -> Dict[str, object]:
     trainer = fit_tuned_ranking_model if tuned else train_ranking_model
     model_name = "tuned-weighted-ranking" if tuned else "weighted-ranking"
     loto2_model = trainer(results, target_name="loto2", top_k=top_k_loto2, min_train_size=30) if tuned else trainer(results, target_name="loto2", top_k=top_k_loto2)
-    loto3_model = trainer(results, target_name="loto3", top_k=top_k_loto3, min_train_size=30) if tuned else trainer(results, target_name="loto3", top_k=top_k_loto3)
-    special2_model = trainer(results, target_name="special2", top_k=top_k_special2, min_train_size=30) if tuned else trainer(results, target_name="special2", top_k=top_k_special2)
-    special3_model = trainer(results, target_name="special3", top_k=top_k_special3, min_train_size=30) if tuned else trainer(results, target_name="special3", top_k=top_k_special3)
     return {
         "train_size": len(results),
         "model": model_name,
         "loto2_top": loto2_model.predict(),
-        "loto3_top": loto3_model.predict(),
-        "special2_top": special2_model.predict(),
-        "special3_top": special3_model.predict(),
         "loto2_frequency_top": loto2_model.predict_baseline(),
-        "loto3_frequency_top": loto3_model.predict_baseline(),
-        "special2_frequency_top": special2_model.predict_baseline(),
-        "special3_frequency_top": special3_model.predict_baseline(),
         "loto2_weights": loto2_model.weights,
-        "loto3_weights": loto3_model.weights,
-        "special2_weights": special2_model.weights,
-        "special3_weights": special3_model.weights,
     }
 

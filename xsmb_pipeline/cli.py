@@ -85,7 +85,7 @@ def main() -> None:
 
     train_cmd = sub.add_parser("train", help="Train a ranking model from a CSV dataset")
     train_cmd.add_argument("input", help="Input CSV dataset")
-    train_cmd.add_argument("--target", choices=["loto2", "loto3", "special2", "special3"], required=True)
+    train_cmd.add_argument("--target", choices=["loto2"], required=True)
     train_cmd.add_argument("--top-k", type=int, default=5, help="Number of top predictions")
     train_cmd.add_argument("--tuned", action="store_true", help="Tune weights from historical data before training")
     train_cmd.add_argument("--min-train-size", type=int, default=30, help="Minimum history length for tuning")
@@ -93,33 +93,30 @@ def main() -> None:
 
     eval_cmd = sub.add_parser("evaluate", help="Evaluate a ranking target by time split")
     eval_cmd.add_argument("input", help="Input CSV dataset")
-    eval_cmd.add_argument("--target", choices=["loto2", "loto3", "special2", "special3"], required=True)
+    eval_cmd.add_argument("--target", choices=["loto2"], required=True)
     eval_cmd.add_argument("--split-ratio", type=float, default=0.8)
     eval_cmd.add_argument("--top-k", type=int, default=5)
 
     walk_cmd = sub.add_parser("walkforward", help="Run walk-forward evaluation")
     walk_cmd.add_argument("input", help="Input CSV dataset")
-    walk_cmd.add_argument("--target", choices=["loto2", "loto3", "special2", "special3"], required=True)
+    walk_cmd.add_argument("--target", choices=["loto2"], required=True)
     walk_cmd.add_argument("--top-k", type=int, default=5)
     walk_cmd.add_argument("--min-train-size", type=int, default=30)
 
     plot_cmd = sub.add_parser("plot", help="Export walk-forward visualization or fallback CSV")
     plot_cmd.add_argument("input", help="Input CSV dataset")
-    plot_cmd.add_argument("--target", choices=["loto2", "loto3", "special2", "special3"], required=True)
+    plot_cmd.add_argument("--target", choices=["loto2"], required=True)
     plot_cmd.add_argument("--top-k", type=int, default=5)
     plot_cmd.add_argument("--output", required=True, help="PNG output path")
 
     predict_cmd = sub.add_parser("predict", help="Predict ranked candidates for the next draw")
     predict_cmd.add_argument("input", help="Input CSV dataset")
     predict_cmd.add_argument("--top-k-loto2", type=int, default=5)
-    predict_cmd.add_argument("--top-k-loto3", type=int, default=5)
-    predict_cmd.add_argument("--top-k-special2", type=int, default=5)
-    predict_cmd.add_argument("--top-k-special3", type=int, default=5)
     predict_cmd.add_argument("--tuned", action="store_true", help="Tune weights from historical data before predicting")
 
     sklearn_cmd = sub.add_parser("sklearn-train", help="Train a tabular ranking model from a CSV dataset")
     sklearn_cmd.add_argument("input", help="Input CSV dataset")
-    sklearn_cmd.add_argument("--target", choices=["loto2", "loto3", "special2", "special3"], required=True)
+    sklearn_cmd.add_argument("--target", choices=["loto2"], required=True)
     sklearn_cmd.add_argument("--top-k", type=int, default=5)
     sklearn_cmd.add_argument("--min-train-size", type=int, default=30)
     sklearn_cmd.add_argument("--model-name", default="logistic", help="Model backend: logistic, random_forest, extra_trees, mlp")
@@ -127,7 +124,7 @@ def main() -> None:
 
     sklearn_eval_cmd = sub.add_parser("sklearn-evaluate", help="Evaluate a tabular ranking model by time split")
     sklearn_eval_cmd.add_argument("input", help="Input CSV dataset")
-    sklearn_eval_cmd.add_argument("--target", choices=["loto2", "loto3", "special2", "special3"], required=True)
+    sklearn_eval_cmd.add_argument("--target", choices=["loto2"], required=True)
     sklearn_eval_cmd.add_argument("--split-ratio", type=float, default=0.8)
     sklearn_eval_cmd.add_argument("--top-k", type=int, default=5)
     sklearn_eval_cmd.add_argument("--min-train-size", type=int, default=30)
@@ -156,7 +153,7 @@ def main() -> None:
 
     signal_backtest_cmd = sub.add_parser("signal-backtest", help="Run walk-forward backtests for individual signals or the ensemble")
     signal_backtest_cmd.add_argument("input", help="Input CSV dataset")
-    signal_backtest_cmd.add_argument("--target", choices=["loto2", "loto3", "special2", "special3"], default="loto2")
+    signal_backtest_cmd.add_argument("--target", choices=["loto2"], default="loto2")
     signal_backtest_cmd.add_argument("--mode", choices=["single", "all", "groups", "ensemble"], default="single")
     signal_backtest_cmd.add_argument("--signal", help="Signal name required for --mode single")
     signal_backtest_cmd.add_argument("--top-k", type=int, default=5)
@@ -278,9 +275,6 @@ def main() -> None:
         payload = predict_next_day(
             results,
             top_k_loto2=args.top_k_loto2,
-            top_k_loto3=args.top_k_loto3,
-            top_k_special2=args.top_k_special2,
-            top_k_special3=args.top_k_special3,
             tuned=args.tuned,
         )
         print(json.dumps(payload, ensure_ascii=False, indent=2))
