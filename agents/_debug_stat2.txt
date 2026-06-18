@@ -1,0 +1,23 @@
+Imports OK
+Loaded 5896 rows
+Test indices: 1174
+1 ranking: 0.00s, result: ['59', '31', '36']
+  day 0: 0.00s elapsed
+  day 5: 0.00s elapsed
+  day 10: 0.00s elapsed
+  day 15: 0.01s elapsed
+20 days: 0.01s
+Estimated full: 1s = 0.0min
+Starting full run...
+  cached 100/1174: 0s
+  cached 200/1174: 1s
+  cached 300/1174: 1s
+  cached 400/1174: 2s
+  cached 500/1174: 3s
+  cached 600/1174: 5s
+  cached 700/1174: 7s
+  cached 800/1174: 9s
+  cached 900/1174: 11s
+  cached 1000/1174: 14s
+  cached 1100/1174: 17s
+Full freq cache: 20s

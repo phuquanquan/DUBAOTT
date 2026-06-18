@@ -1,0 +1,97 @@
+{
+  "current_phase": "Giai doan 10 - Online Learning",
+  "current_task": "Port 3 scoring algorithms tu junlangzi/Lottery-Predictor",
+  "task_description": "Port 3 thuat toan scoring tu junlangzi/Lottery-Predictor vao signals.py + chay backtest walk-forward",
+  "status": "done",
+  "assigned_to": "claude",
+  "last_updated": "2026-06-11T11:08:00+00:00",
+  "review_status": "approved",
+  "review_notes": "Fixed: NameError summarize_signals not imported, target_items cache key broken (id-based key never hit), XGBoost n_jobs=-1 causing 200x slowdown on Windows.",
+  "implementation_notes": "Da port 3 scoring algorithms tu junlangzi/Lottery-Predictor: (1) days_since_last_score - cong diem theo ngay vo mat + milestone bonus + progressive bonus. (2) prize_position_penalty_score - phat diem dua tren vi tri giai nguoc cua ngay gan nhat. (3) thirty_day_frequency_penalty_score - phat nhom it xuat hien trong 30 ngay, thuong nhom chua xuat hien. Backtest 365 days (05/06/2025-10/06/2026), top_k=3: prize_position_penalty=Hit 57.91% Delta+5.97pp, days_since_last=Hit 57.01% Delta+5.07pp, thirty_day=Hit 54.63% Delta+2.69pp. Chi tiet xem _quick_compare.py output.",
+  "files_changed": "xsmb_pipeline/signals.py, xsmb_pipeline/tests/test_signal_backtests.py, xsmb_pipeline/backtest_ensemble.py, xsmb_pipeline/evaluate.py (import fix), xsmb_pipeline/features.py (cache fix), xsmb_pipeline/models/sklearn_ranker.py (XGBoost n_jobs=1)",
+  "next_task": "Xem ket qua, quyet dinh co forward sang mô hình-5.5 review hay tiep tuc",
+  "kiro_note": "3 algorithm moi co Delta > 0, nhung chua chung minh edge thong ke (p-value). Can chay proper walk-forward tren full 5896 days voi statistical significance test. Hoac chuyen sang mô hình-5.5 review.",
+  "performance_fixes": [
+    "features.py: target_items cache key changed from id(results[0]) to tuple(id(r) for r in results) - cache now actually hits",
+    "evaluate.py: added summarize_signals to imports - fixed NameError",
+    "sklearn_ranker.py: XGBoost n_jobs=1 instead of -1 - 200x speedup on Windows (n_jobs=-1 causes 100x slowdown on Windows due to fork/spawn overhead)"
+  ],
+  "backtest_results": {
+    "data": "365 days (05/06/2025 - 10/06/2026)",
+    "top_k": 3,
+    "min_train_size": 30,
+    "signals_ranked": [
+      {
+        "rank": 1,
+        "signal": "hot_trend",
+        "hit_rate": 58.51,
+        "delta": 6.57,
+        "verdict": "keep"
+      },
+      {
+        "rank": 2,
+        "signal": "prize_position_penalty",
+        "hit_rate": 57.91,
+        "delta": 5.97,
+        "verdict": "keep"
+      },
+      {
+        "rank": 3,
+        "signal": "days_since_last",
+        "hit_rate": 57.01,
+        "delta": 5.07,
+        "verdict": "keep"
+      },
+      {
+        "rank": 4,
+        "signal": "cold_return",
+        "hit_rate": 57.01,
+        "delta": 5.07,
+        "verdict": "keep"
+      },
+      {
+        "rank": 5,
+        "signal": "touch",
+        "hit_rate": 56.72,
+        "delta": 4.78,
+        "verdict": "keep"
+      },
+      {
+        "rank": 6,
+        "signal": "inversion",
+        "hit_rate": 56.72,
+        "delta": 4.78,
+        "verdict": "keep"
+      },
+      {
+        "rank": 7,
+        "signal": "pascal",
+        "hit_rate": 55.82,
+        "delta": 3.88,
+        "verdict": "keep"
+      },
+      {
+        "rank": 8,
+        "signal": "composition",
+        "hit_rate": 55.52,
+        "delta": 3.58,
+        "verdict": "keep"
+      },
+      {
+        "rank": 9,
+        "signal": "thirty_day_freq_penalty",
+        "hit_rate": 54.63,
+        "delta": 2.69,
+        "verdict": "keep"
+      },
+      {
+        "rank": 10,
+        "signal": "bridge",
+        "hit_rate": 53.13,
+        "delta": 1.19,
+        "verdict": "keep"
+      }
+    ]
+  },
+  "architecture": "Crawler -> DuckDB -> Feature Engine -> Feature Store -> Model Training -> Scoring Algorithms (algorithm_01 + 3 junlangzi algorithms + 30 signal functions) -> Ensemble -> Prediction API -> Dashboard / Telegram Bot"
+}

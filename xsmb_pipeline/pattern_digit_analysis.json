@@ -1,0 +1,241 @@
+{
+  "n_results": 5896,
+  "random_baseline_1digit": "10.0%",
+  "random_baseline_2digits": "1.0%",
+  "patterns": [
+    {
+      "name": "DB sum (T-1) -> Tong",
+      "hit_rate": 100.0,
+      "hits": 5294,
+      "total": 5294
+    },
+    {
+      "name": "G1 sum == DB sum T-1 -> bet same tong",
+      "hit_rate": 100.0,
+      "hits": 528,
+      "total": 528
+    },
+    {
+      "name": "Overdue top3 D1 digits (bet 3 digits)",
+      "hit_rate": 30.28132992327366,
+      "hits": 1776,
+      "total": 5865
+    },
+    {
+      "name": "Overdue top3 D0 digits (bet 3 digits)",
+      "hit_rate": 29.036658141517474,
+      "hits": 1703,
+      "total": 5865
+    },
+    {
+      "name": "Overdue D0 digit (gap>0.8) -> bet top1",
+      "hit_rate": 17.177914110429448,
+      "hits": 56,
+      "total": 326
+    },
+    {
+      "name": "(DB D1 T-1 + G1 D1) mod 10 -> D1",
+      "hit_rate": 10.656436487638533,
+      "hits": 625,
+      "total": 5865
+    },
+    {
+      "name": "G1 D0 == DB D0 T-1 -> D1 = G1 D1",
+      "hit_rate": 10.616438356164384,
+      "hits": 62,
+      "total": 584
+    },
+    {
+      "name": "Most frequent G1 last digit (3d) -> D1",
+      "hit_rate": 10.502983802216539,
+      "hits": 616,
+      "total": 5865
+    },
+    {
+      "name": "DB D0 repeats -> bet same",
+      "hit_rate": 10.417732310315431,
+      "hits": 611,
+      "total": 5865
+    },
+    {
+      "name": "Min gap ratio D0 -> bet it",
+      "hit_rate": 10.417732310315431,
+      "hits": 611,
+      "total": 5865
+    },
+    {
+      "name": "(G1 D0 + G1 D1) mod 10 -> D1",
+      "hit_rate": 10.400682011935208,
+      "hits": 610,
+      "total": 5865
+    },
+    {
+      "name": "G1 last digit -> D1",
+      "hit_rate": 10.29838022165388,
+      "hits": 604,
+      "total": 5865
+    },
+    {
+      "name": "G1 first digit -> D1",
+      "hit_rate": 10.264279624893435,
+      "hits": 602,
+      "total": 5865
+    },
+    {
+      "name": "(DB D0 T-1 + G1 D1) mod 10 -> D1",
+      "hit_rate": 10.247229326513214,
+      "hits": 601,
+      "total": 5865
+    },
+    {
+      "name": "G1 first digit -> D0",
+      "hit_rate": 10.179028132992327,
+      "hits": 597,
+      "total": 5865
+    },
+    {
+      "name": "G1 D0 + D1 -> D0 = G1 D0",
+      "hit_rate": 10.179028132992327,
+      "hits": 597,
+      "total": 5865
+    },
+    {
+      "name": "G1 last digit -> D0",
+      "hit_rate": 10.09377664109122,
+      "hits": 592,
+      "total": 5865
+    },
+    {
+      "name": "(G1 D0 + G1 D1 - DB D1 T-1) mod 10 -> D0",
+      "hit_rate": 10.059676044330775,
+      "hits": 590,
+      "total": 5865
+    },
+    {
+      "name": "(DB D0 T-1 + G1 D1) mod 10 -> D0",
+      "hit_rate": 10.00852514919011,
+      "hits": 587,
+      "total": 5865
+    },
+    {
+      "name": "DB D1 (T-1) -> D0",
+      "hit_rate": 9.957374254049446,
+      "hits": 584,
+      "total": 5865
+    },
+    {
+      "name": "DB D0 (T-1) -> D1",
+      "hit_rate": 9.957374254049446,
+      "hits": 584,
+      "total": 5865
+    },
+    {
+      "name": "(G1 D0 + G1 D1) mod 10 -> Tong",
+      "hit_rate": 9.947249434815374,
+      "hits": 528,
+      "total": 5308
+    },
+    {
+      "name": "G1 D0 == DB D1 (T-1) -> D0 = DB D1",
+      "hit_rate": 9.927797833935017,
+      "hits": 55,
+      "total": 554
+    },
+    {
+      "name": "Same DOW as 7d ago -> D1 = D1 7d ago",
+      "hit_rate": 9.89147838462907,
+      "hits": 556,
+      "total": 5621
+    },
+    {
+      "name": "Most frequent G1 last digit (3d) -> D0",
+      "hit_rate": 9.803921568627452,
+      "hits": 575,
+      "total": 5865
+    },
+    {
+      "name": "Overdue D1 digit (gap>0.8) -> bet top1",
+      "hit_rate": 9.787234042553191,
+      "hits": 23,
+      "total": 235
+    },
+    {
+      "name": "Most frequent G1 last digit (7d) -> D1",
+      "hit_rate": 9.752770673486786,
+      "hits": 572,
+      "total": 5865
+    },
+    {
+      "name": "DB D1 repeats -> bet same",
+      "hit_rate": 9.718670076726342,
+      "hits": 570,
+      "total": 5865
+    },
+    {
+      "name": "Most frequent G1 last digit (7d) -> D0",
+      "hit_rate": 9.548167092924126,
+      "hits": 560,
+      "total": 5865
+    },
+    {
+      "name": "Same DOW as 7d ago -> D0 = D0 7d ago",
+      "hit_rate": 9.51787938089308,
+      "hits": 535,
+      "total": 5621
+    },
+    {
+      "name": "DB D0 T-1 == G1 D1 -> D1 = DB D1 T-1",
+      "hit_rate": 9.482758620689655,
+      "hits": 55,
+      "total": 580
+    },
+    {
+      "name": "(G1 D0 + G1 D1) mod 10 -> D0",
+      "hit_rate": 9.258312020460357,
+      "hits": 543,
+      "total": 5865
+    },
+    {
+      "name": "Overdue top3 D0 AND top3 D1 (3+3 digits each)",
+      "hit_rate": 9.156010230179028,
+      "hits": 537,
+      "total": 5865
+    },
+    {
+      "name": "G1 D1 == DB D1 T-1 -> D1 = G1 D1",
+      "hit_rate": 8.518518518518519,
+      "hits": 46,
+      "total": 540
+    },
+    {
+      "name": "G1 D1 -> D0 AND frequent G1 D1 7d -> D1",
+      "hit_rate": 1.0571184995737426,
+      "hits": 62,
+      "total": 5865
+    },
+    {
+      "name": "G1 D1 -> D0 AND D1 (both)",
+      "hit_rate": 1.040068201193521,
+      "hits": 61,
+      "total": 5865
+    },
+    {
+      "name": "G1 D1->D0 AND G1 D0->D1 (both cross)",
+      "hit_rate": 0.9548167092924127,
+      "hits": 56,
+      "total": 5865
+    },
+    {
+      "name": "Frequent G1 last digit 7d -> both D0, D1",
+      "hit_rate": 0.937766410912191,
+      "hits": 55,
+      "total": 5865
+    },
+    {
+      "name": "(G1 D0+G1 D1) mod10 -> both D0, D1",
+      "hit_rate": 0.937766410912191,
+      "hits": 55,
+      "total": 5865
+    }
+  ]
+}

@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Sequence, Tuple
 
 try:
     from sklearn.ensemble import ExtraTreesClassifier, RandomForestClassifier
-    from sklearn.linear_model import LogisticRegression
+    from sklearn.linear_model import LogisticRegression, RidgeClassifier, SGDClassifier
     from sklearn.neural_network import MLPClassifier
     from sklearn.pipeline import make_pipeline
     from sklearn.preprocessing import StandardScaler
@@ -16,10 +16,28 @@ except ModuleNotFoundError:
     ExtraTreesClassifier = None
     RandomForestClassifier = None
     LogisticRegression = None
+    RidgeClassifier = None
+    SGDClassifier = None
     MLPClassifier = None
     make_pipeline = None
     StandardScaler = None
     SKLEARN_AVAILABLE = False
+
+try:
+    from lightgbm import LGBMClassifier
+
+    LIGHTGBM_AVAILABLE = True
+except ModuleNotFoundError:
+    LGBMClassifier = None
+    LIGHTGBM_AVAILABLE = False
+
+try:
+    from catboost import CatBoostClassifier
+
+    CATBOOST_AVAILABLE = True
+except ModuleNotFoundError:
+    CatBoostClassifier = None
+    CATBOOST_AVAILABLE = False
 
 from ..features import bridge_frequency, bridge_streak, digit_part_frequency, digit_position_frequency, digit_transition_score, gap_since_last_seen, head_frequency, recent_long_term_delta, recency_decay_score, repeated_digit_ratio, rolling_frequency, tail_frequency, unique_digit_ratio
 from ..schema import LotteryResult
@@ -47,16 +65,78 @@ def require_sklearn(model_name: str) -> None:
         raise ModuleNotFoundError(f"scikit-learn is required for model '{model_name}'")
 
 
+LAYER1_MODEL_NAMES = ["xgboost", "lightgbm", "catboost", "random_forest", "extra_trees"]
+
+
 def available_model_names() -> List[str]:
-    return ["extra_trees", "logistic", "logistic_l2", "mlp", "random_forest"]
+    names = ["extra_trees", "elasticnet", "lightgbm", "logistic", "logistic_l2", "mlp", "random_forest", "ridge", "xgboost", "catboost"]
+    return names
+
+
+def benchmarkable_model_names(target_name: str) -> List[str]:
+    names = ["logistic", "random_forest", "extra_trees", "mlp", "xgboost", "ridge", "elasticnet"]
+    if LIGHTGBM_AVAILABLE:
+        names.append("lightgbm")
+    if CATBOOST_AVAILABLE:
+        names.append("catboost")
+    return names
+
+
+def layer1_model_names() -> List[str]:
+    names = ["xgboost", "random_forest", "extra_trees"]
+    if LIGHTGBM_AVAILABLE:
+        names.append("lightgbm")
+    if CATBOOST_AVAILABLE:
+        names.append("catboost")
+    return names
+
+
+def _build_xgboost_estimator() -> Any:
+    """Build XGBoost classifier for use via sklearn-style interface (benchmark path)."""
+    import xgboost as xgb
+
+    return xgb.XGBClassifier(
+        n_estimators=200,
+        max_depth=4,
+        learning_rate=0.08,
+        subsample=0.9,
+        colsample_bytree=0.8,
+        objective="binary:logistic",
+        eval_metric="logloss",
+        random_state=42,
+        n_jobs=1,
+        tree_method="hist",
+    )
+
+
+def _build_lightgbm_estimator() -> Any:
+    if LGBMClassifier is None:
+        raise ModuleNotFoundError("lightgbm is required for model 'lightgbm'")
+    return LGBMClassifier(
+        n_estimators=300,
+        learning_rate=0.05,
+        num_leaves=31,
+        subsample=0.9,
+        colsample_bytree=0.8,
+        random_state=42,
+    )
+
+
+def _build_catboost_estimator() -> Any:
+    if CatBoostClassifier is None:
+        raise ModuleNotFoundError("catboost is required for model 'catboost'")
+    return CatBoostClassifier(
+        iterations=300,
+        learning_rate=0.05,
+        depth=6,
+        loss_function="Logloss",
+        verbose=False,
+        random_seed=42,
+    )
 
 
 def model_is_available(model_name: str) -> bool:
     return model_name in available_model_names() and SKLEARN_AVAILABLE
-
-
-def benchmarkable_model_names(target_name: str) -> List[str]:
-    return ["logistic", "random_forest", "extra_trees", "mlp"]
 
 
 def build_estimator(model_name: str) -> Any:
@@ -65,6 +145,10 @@ def build_estimator(model_name: str) -> Any:
         return LogisticRegression(max_iter=1000, class_weight="balanced")
     if model_name == "logistic_l2":
         return LogisticRegression(max_iter=1500, class_weight="balanced", C=0.7)
+    if model_name == "ridge":
+        return RidgeClassifier(class_weight="balanced")
+    if model_name == "elasticnet":
+        return SGDClassifier(loss="log_loss", penalty="elasticnet", alpha=0.0005, l1_ratio=0.5, max_iter=1000, random_state=42, class_weight="balanced")
     if model_name == "random_forest":
         return RandomForestClassifier(n_estimators=300, max_depth=8, min_samples_leaf=2, random_state=42, class_weight="balanced_subsample")
     if model_name == "extra_trees":
@@ -74,6 +158,12 @@ def build_estimator(model_name: str) -> Any:
             StandardScaler(),
             MLPClassifier(hidden_layer_sizes=(64, 32), activation="relu", alpha=0.001, learning_rate_init=0.001, max_iter=800, random_state=42),
         )
+    if model_name == "xgboost":
+        return _build_xgboost_estimator()
+    if model_name == "lightgbm":
+        return _build_lightgbm_estimator()
+    if model_name == "catboost":
+        return _build_catboost_estimator()
     raise ValueError(f"Unsupported sklearn ranking model: {model_name}")
 
 
@@ -149,24 +239,30 @@ def training_split_indexes(total_results: int, min_train_size: int) -> List[int]
     return indexes[-18:]
 
 
+def _resolved_target_name(target_name: str) -> str:
+    return target_name if target_name == "loto2" else "loto2"
+
+
 def build_training_matrix(results: Sequence[LotteryResult], target_name: str, min_train_size: int, selected_signal_names: Sequence[str] | None = None) -> Tuple[int, List[str], List[List[float]], List[int]]:
-    width = target_width(target_name)
+    effective_target_name = _resolved_target_name(target_name)
+    width = target_width(effective_target_name)
     universe = candidate_universe(width)
     X: List[List[float]] = []
     y: List[int] = []
     for split_index in training_split_indexes(len(results), min_train_size):
         history = list(results[:split_index])
-        actual = set(actual_targets(results[split_index], target_name))
+        actual = set(actual_targets(results[split_index], effective_target_name))
         for candidate in training_candidates(universe, actual, split_index, width):
-            X.append(build_feature_vector(history, candidate, target_name, width, selected_signal_names=selected_signal_names))
+            X.append(build_feature_vector(history, candidate, effective_target_name, width, selected_signal_names=selected_signal_names))
             y.append(1 if candidate in actual else 0)
     return width, universe, X, y
 
 
 def score_universe(model: Any, results: Sequence[LotteryResult], target_name: str, width: int, universe: Sequence[str], selected_signal_names: Sequence[str] | None = None) -> Dict[str, float]:
+    effective_target_name = _resolved_target_name(target_name)
     final_scores: Dict[str, float] = {}
     for candidate in universe:
-        vector = build_feature_vector(results, candidate, target_name, width, selected_signal_names=selected_signal_names)
+        vector = build_feature_vector(results, candidate, effective_target_name, width, selected_signal_names=selected_signal_names)
         final_scores[candidate] = predict_positive_score(model, vector)
     return final_scores
 

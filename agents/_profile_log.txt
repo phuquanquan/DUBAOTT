@@ -1,0 +1,5 @@
+touch: 5 cand=48ms, est 100 cand=1.0s, est 587 days=9min
+inversion: 5 cand=1ms, est 100 cand=0.0s, est 587 days=0min
+fibonacci: 5 cand=1ms, est 100 cand=0.0s, est 587 days=0min
+pascal: 5 cand=0ms, est 100 cand=0.0s, est 587 days=0min
+composition: 5 cand=13ms, est 100 cand=0.3s, est 587 days=2min

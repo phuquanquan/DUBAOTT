@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Dict, List
 
 
-@dataclass
+@dataclass(frozen=True)
 class LotteryResult:
     date: str
     region: str
@@ -16,6 +16,20 @@ class LotteryResult:
     fifth: List[str]
     sixth: List[str]
     seventh: List[str]
+
+    def __hash__(self) -> int:
+        return hash((
+            self.date,
+            self.region,
+            self.special,
+            tuple(self.first),
+            tuple(self.second),
+            tuple(self.third),
+            tuple(self.fourth),
+            tuple(self.fifth),
+            tuple(self.sixth),
+            tuple(self.seventh),
+        ))
 
 
 class ParseError(RuntimeError):

@@ -1,0 +1,38 @@
+Starting...
+Functions OK
+Data: 5896 rows
+Cache: 587 entries
+Test indices: 587
+Testing hot_trend...
+  day 0: hit=0, fhit=1
+  day 1: hit=0, fhit=1
+  day 2: hit=0, fhit=0
+  day 3: hit=0, fhit=1
+  day 4: hit=1, fhit=0
+  day 5: hit=0, fhit=1
+  day 6: hit=0, fhit=1
+  day 7: hit=0, fhit=1
+  day 8: hit=0, fhit=0
+  day 9: hit=0, fhit=0
+hot_trend 10 days: 0.1s
+Testing cold_return...
+  day 0: hit=1
+  day 1: hit=0
+  day 2: hit=0
+  day 3: hit=1
+  day 4: hit=1
+  day 5: hit=1
+  day 6: hit=1
+  day 7: hit=0
+  day 8: hit=1
+  day 9: hit=0
+cold_return 10 days: 0.0s
+Full hot_trend 587 days...
+  day 0/587
+  day 100/587
+  day 200/587
+  day 300/587
+  day 400/587
+  day 500/587
+Full hot_trend: 4.9s, hits=339/587
+ALL DONE

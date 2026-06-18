@@ -5,9 +5,11 @@ from typing import Callable, Dict, List, Sequence, Tuple
 
 from .dataset import parse_date
 from .models.weighted import RankingEvaluation, candidate_universe, compare_loto2_weight_strategies, fit_tuned_ranking_model, normalized_frequency, predict_next_day, train_ranking_model
-from .schema import LotteryResult
-from .signals import SIGNAL_DEFINITIONS, build_signal_payload, clamp, ensemble_signal_score, resolved_model_signal_names, signal_definitions_by_group, signal_group_catalog, signal_group_names, signal_names_for_group, signal_names_for_groups
+from .models.sklearn_ranker import available_model_names, benchmarkable_model_names, fit_named_sklearn_ranking_model, model_label
+from .models.base import RankingPrediction
 from .targets import actual_targets, target_width
+from .signals import SIGNAL_DEFINITIONS, build_signal_payload, clamp, ensemble_signal_score, phase6_target_names, resolved_model_signal_names, signal_definitions_by_group, signal_group_catalog, signal_group_names, signal_names_for_group, signal_names_for_groups, summarize_signals, target_preset
+from .schema import LotteryResult
 
 
 def evaluate_prediction_set(predicted: Sequence[str], actual: Sequence[str], universe_size: int) -> Tuple[int, float, float, float]:
@@ -138,19 +140,89 @@ def blend_model_rankings(rankings: Sequence[Sequence[Tuple[str, float]]]) -> Lis
     return sorted(combined.items(), key=lambda pair: (-pair[1], pair[0]))
 
 
-def ensemble_loto2_predictions(results: Sequence[LotteryResult], top_k: int, min_train_size: int = 30) -> Dict[str, object]:
+def layer1_ensemble_predictions(results: Sequence[LotteryResult], top_k: int, min_train_size: int = 30, selected_signal_names: Sequence[str] | None = None) -> Dict[str, object]:
+    from .models.sklearn_ranker import layer1_model_names, fit_named_sklearn_ranking_model
+
     train = list(results[:-1]) if len(results) > 1 else list(results)
-    weighted = train_ranking_model(train, target_name="loto2", top_k=top_k)
-    tuned = fit_tuned_ranking_model(train, target_name="loto2", top_k=top_k, min_train_size=min_train_size)
-    rankings = [weighted.predict(), tuned.predict()]
-    blended = blend_model_rankings(rankings)[:top_k]
+    component_models = []
+    component_rankings: List[List[Tuple[str, float]]] = []
+    for model_name in layer1_model_names():
+        model = fit_named_sklearn_ranking_model(
+            train,
+            target_name="loto2",
+            top_k=top_k,
+            min_train_size=min_train_size,
+            model_name=model_name,
+            selected_signal_names=selected_signal_names,
+        )
+        component_models.append(model_name)
+        component_rankings.append(model.predict())
+    blended = blend_model_rankings(component_rankings)[:top_k]
     return {
         "target": "loto2",
         "top_k": top_k,
-        "model": "rank-blend",
+        "model": "layer1-ensemble",
         "top_predictions": blended,
-        "components": [weighted.predict(), tuned.predict()],
+        "components": component_models,
+        "component_rankings": component_rankings,
     }
+
+
+def _stacking_candidate_scores(results: Sequence[LotteryResult], target_name: str, top_k: int, min_train_size: int, selected_signal_names: Sequence[str] | None = None) -> Dict[str, List[Tuple[str, float]]]:
+    component_names = benchmarkable_model_names(target_name)
+    stacked_scores: Dict[str, List[Tuple[str, float]]] = {}
+    for model_name in component_names:
+        model = fit_named_sklearn_ranking_model(
+            results,
+            target_name=target_name,
+            top_k=top_k,
+            min_train_size=min_train_size,
+            model_name=model_name,
+            selected_signal_names=selected_signal_names,
+        )
+        stacked_scores[model_name] = model.predict()
+    return stacked_scores
+
+
+def meta_stack_predictions(results: Sequence[LotteryResult], target_name: str = "loto2", top_k: int = 5, min_train_size: int = 30, selected_signal_names: Sequence[str] | None = None) -> Dict[str, object]:
+    train = list(results[:-1]) if len(results) > 1 else list(results)
+    stacked_scores = _stacking_candidate_scores(train, target_name=target_name, top_k=top_k, min_train_size=min_train_size, selected_signal_names=selected_signal_names)
+    blended = blend_model_rankings(list(stacked_scores.values()))[:top_k]
+    return {
+        "target": target_name,
+        "top_k": top_k,
+        "model": "meta-stack",
+        "top_predictions": blended,
+        "components": list(stacked_scores.keys()),
+        "component_rankings": stacked_scores,
+    }
+
+
+def meta_layer2_predictions(results: Sequence[LotteryResult], target_name: str = "loto2", top_k: int = 5, min_train_size: int = 30, model_name: str = "logistic", selected_signal_names: Sequence[str] | None = None) -> Dict[str, object]:
+    train = list(results[:-1]) if len(results) > 1 else list(results)
+    model = fit_named_sklearn_ranking_model(
+        train,
+        target_name=target_name,
+        top_k=top_k,
+        min_train_size=min_train_size,
+        model_name=model_name,
+        selected_signal_names=selected_signal_names,
+    )
+    return {
+        "target": target_name,
+        "top_k": top_k,
+        "model": model_label(model_name),
+        "top_predictions": model.predict(),
+        "frequency_top_predictions": [],
+        "metadata": {
+            "model_name": model_name,
+            "selected_signal_names": resolved_model_signal_names(target_name, selected_signal_names),
+        },
+    }
+
+
+def ensemble_loto2_predictions(results: Sequence[LotteryResult], top_k: int, min_train_size: int = 30) -> Dict[str, object]:
+    return layer1_ensemble_predictions(results, top_k=top_k, min_train_size=min_train_size)
 
 
 def build_evaluation(model_name: str, target_name: str, train_size: int, test_size: int, top_k: int, hit_rate: float, baseline_hit_rate: float, frequency_hit_rate: float, precision_at_k: float, baseline_precision_at_k: float, frequency_precision_at_k: float) -> RankingEvaluation:
@@ -173,6 +245,103 @@ def build_evaluation(model_name: str, target_name: str, train_size: int, test_si
         baseline_precision_at_k_pct=baseline_precision_at_k * 100.0,
         frequency_precision_at_k_pct=frequency_precision_at_k * 100.0,
     )
+
+
+def evaluation_precision_metrics(predicted: Sequence[str], actual: Sequence[str], universe_size: int, top_k_values: Sequence[int] = (5, 10)) -> Dict[str, float]:
+    metrics: Dict[str, float] = {}
+    for top_k in top_k_values:
+        hit, baseline_hit, precision, baseline_precision = evaluate_prediction_set(predicted[:top_k], actual, universe_size)
+        metrics[f"hit_rate@{top_k}"] = float(hit)
+        metrics[f"baseline_hit_rate@{top_k}"] = float(baseline_hit)
+        metrics[f"precision@{top_k}"] = float(precision)
+        metrics[f"baseline_precision@{top_k}"] = float(baseline_precision)
+        metrics[f"roi@{top_k}"] = float((precision - baseline_precision) * 100.0)
+    return metrics
+
+
+def row_metric_average(rows: Sequence[Dict[str, object]], key: str) -> float:
+    if not rows:
+        return 0.0
+    return sum(float(row.get(key, 0.0)) for row in rows) / len(rows)
+
+
+def row_metric_average_nested(rows: Sequence[Dict[str, object]], outer_key: str, inner_key: str) -> float:
+    if not rows:
+        return 0.0
+    total = 0.0
+    for row in rows:
+        nested = row.get(outer_key, {})
+        if isinstance(nested, dict):
+            total += float(nested.get(inner_key, 0.0))
+    return total / len(rows)
+
+
+def yearly_backtest_summaries(results: Sequence[LotteryResult], target_name: str = "loto2", top_k: int = 5, min_train_size: int = 30) -> List[Dict[str, object]]:
+    rows = list(results)
+    summaries: List[Dict[str, object]] = []
+    years = sorted({int(item.date[-4:]) for item in rows if len(item.date) >= 4 and item.date[-4:].isdigit()})
+    for year in years:
+        test_rows = [item for item in rows if item.date.endswith(str(year))]
+        train_rows = [item for item in rows if item.date.endswith(str(year)) is False and int(item.date[-4:]) < year]
+        if len(train_rows) < min_train_size or not test_rows:
+            continue
+        model = train_ranking_model(train_rows, target_name=target_name, top_k=top_k)
+        weighted_predicted = [number for number, _score in model.predict()]
+        baseline_predicted = [number for number, _score in model.predict_baseline()]
+        universe_size = 10 ** model.number_width
+        weighted_hit = 0
+        baseline_hit = 0.0
+        weighted_precision_5 = 0.0
+        weighted_precision_10 = 0.0
+        weighted_baseline_precision_5 = 0.0
+        weighted_baseline_precision_10 = 0.0
+        for test_result in test_rows:
+            actual = actual_targets(test_result, target_name)
+            hit_5, baseline_5, precision_5, baseline_precision_5 = evaluate_prediction_set(weighted_predicted[:5], actual, universe_size)
+            _hit_10, baseline_10, precision_10, baseline_precision_10 = evaluate_prediction_set(weighted_predicted[:10], actual, universe_size)
+            hit, baseline, _, _ = evaluate_prediction_set(weighted_predicted, actual, universe_size)
+            weighted_hit += hit
+            baseline_hit += baseline
+            weighted_precision_5 += precision_5
+            weighted_precision_10 += precision_10
+            weighted_baseline_precision_5 += baseline_precision_5
+            weighted_baseline_precision_10 += baseline_precision_10
+        count = len(test_rows)
+        summaries.append({
+            "year": year,
+            "train_size": len(train_rows),
+            "test_size": count,
+            "target": target_name,
+            "model": "weighted-ranking",
+            "hit_rate": weighted_hit / count,
+            "baseline_hit_rate": baseline_hit / count,
+            "precision@5": weighted_precision_5 / count,
+            "precision@10": weighted_precision_10 / count,
+            "baseline_precision@5": weighted_baseline_precision_5 / count,
+            "baseline_precision@10": weighted_baseline_precision_10 / count,
+            "roi": ((weighted_precision_5 / count) - (weighted_baseline_precision_5 / count)) * 100.0,
+            "predicted": weighted_predicted,
+            "baseline_predicted": baseline_predicted,
+        })
+    return summaries
+
+
+
+def summarise_yearly_backtest(results: Sequence[LotteryResult], target_name: str = "loto2", top_k: int = 5, min_train_size: int = 30) -> Dict[str, object]:
+    years = yearly_backtest_summaries(results, target_name=target_name, top_k=top_k, min_train_size=min_train_size)
+    return {"target": target_name, "top_k": top_k, "min_train_size": min_train_size, "years": years}
+
+
+
+def walkforward_yearly_backtest(results: Sequence[LotteryResult], target_name: str = "loto2", top_k: int = 5, min_train_size: int = 30) -> Dict[str, object]:
+    rows = walkforward_ranking_backtest(results, target_name=target_name, top_k=top_k, min_train_size=min_train_size)
+    summary = summarize_walkforward_rows(rows, target_name=target_name, model_name="weighted-ranking")
+    return {"target": target_name, "top_k": top_k, "min_train_size": min_train_size, "summary": summary, "rows": rows}
+
+
+
+def yearly_backtest_report(results: Sequence[LotteryResult], target_name: str = "loto2", top_k: int = 5, min_train_size: int = 30) -> Dict[str, object]:
+    return summarise_yearly_backtest(results, target_name=target_name, top_k=top_k, min_train_size=min_train_size)
 
 
 @dataclass(frozen=True)
@@ -569,38 +738,6 @@ def build_group_backtest_summary(evaluations: Sequence[Dict[str, object]]) -> Di
     }
 
 
-def all_signals_backtest(results: Sequence[LotteryResult], target_name: str, top_k: int, min_train_size: int = 30, recent_rows: int = 5) -> Dict[str, object]:
-    evaluations: List[Dict[str, object]] = []
-    best_signal_rows: Dict[str, List[Dict[str, object]]] = {}
-    for signal_name in all_signal_names():
-        rows = walkforward_signal_backtest(results, target_name=target_name, signal_name=signal_name, top_k=top_k, min_train_size=min_train_size)
-        evaluation = build_signal_backtest_evaluation("all", signal_name, target_name, top_k, min_train_size, rows)
-        evaluations.append(asdict(evaluation))
-        best_signal_rows[signal_name] = signal_recent_rows(rows, recent_rows)
-    evaluations.sort(key=signal_leaderboard_sort_key)
-    best_signal = evaluations[0]["signal"] if evaluations else None
-    verdict_counts = {
-        "keep": sum(1 for item in evaluations if item.get("research_verdict") == "keep"),
-        "watch": sum(1 for item in evaluations if item.get("research_verdict") == "watch"),
-        "drop": sum(1 for item in evaluations if item.get("research_verdict") == "drop"),
-    }
-    bridge_focus = [item for item in evaluations if item.get("bridge_signal")]
-    group_summary = build_group_backtest_summary(evaluations)
-    return {
-        "mode": "all",
-        "target": target_name,
-        "top_k": top_k,
-        "min_train_size": min_train_size,
-        "dataset_size": len(results),
-        "evaluations": evaluations,
-        "best_signal": best_signal,
-        "rows": best_signal_rows.get(best_signal, []),
-        "verdict_counts": verdict_counts,
-        "bridge_focus": bridge_focus,
-        "group_summary": group_summary,
-    }
-
-
 def signal_group_backtest(results: Sequence[LotteryResult], target_name: str, top_k: int, min_train_size: int = 30, recent_rows: int = 5) -> Dict[str, object]:
     payload = all_signals_backtest(results, target_name=target_name, top_k=top_k, min_train_size=min_train_size, recent_rows=recent_rows)
     return {
@@ -962,6 +1099,114 @@ def compare_models(results: Sequence[LotteryResult], split_ratio: float, top_k: 
     return compare_loto2_models(results, split_ratio=split_ratio, top_k=top_k, min_train_size=min_train_size)
 
 
+def compare_meta_models(results: Sequence[LotteryResult], split_ratio: float, top_k: int, min_train_size: int = 30) -> Dict[str, object]:
+    target_name = "loto2"
+    meta_models = ["logistic", "ridge", "elasticnet"]
+    candidates: List[Dict[str, object]] = []
+    for model_name in meta_models:
+        metrics = evaluate_named_ranking_backtest(results, split_ratio=split_ratio, target_name=target_name, top_k=top_k, min_train_size=min_train_size, model_name=model_name)
+        candidates.append(asdict(metrics))
+    candidates.sort(key=lambda item: (-float(item["hit_rate"]), -float(item["precision_at_k"]), str(item["model"])))
+    return {
+        "target": target_name,
+        "dataset_size": len(results),
+        "split_ratio": split_ratio,
+        "top_k": top_k,
+        "min_train_size": min_train_size,
+        "evaluations": candidates,
+        "best_model": candidates[0]["model"] if candidates else None,
+        "ensemble": ensemble_loto2_predictions(results, top_k=top_k, min_train_size=min_train_size),
+    }
+
+
+def provider_model_predictions(results: Sequence[LotteryResult], top_k: int, min_train_size: int = 30) -> Dict[str, object]:
+    """Sinh dự đoán cho từng kiểu soi/preset nhưng vẫn dựa trên loto2.
+
+    Mỗi provider dùng preset signal riêng, target output vẫn là loto2.
+    """
+    provider_presets = ["dau", "duoi", "cham", "tong", "so00_99"]
+    provider_models: List[Dict[str, object]] = []
+    for preset_name in provider_presets:
+        preset = target_preset(preset_name)
+        metrics = evaluate_named_ranking_backtest(
+            results,
+            split_ratio=0.75,
+            target_name="loto2",
+            top_k=top_k,
+            min_train_size=min_train_size,
+            model_name="logistic",
+            selected_signal_names=preset.get("model_signals"),
+        )
+        row = asdict(metrics)
+        row["provider_target"] = preset_name
+        row["selected_signal_names"] = preset.get("model_signals", [])
+        provider_models.append(row)
+    provider_models.sort(key=lambda item: (-float(item["hit_rate"]), -float(item["precision_at_k"]), str(item["provider_target"])))
+    return {
+        "target": "loto2",
+        "provider_targets": provider_presets,
+        "top_k": top_k,
+        "models": provider_models,
+        "best_model": provider_models[0] if provider_models else None,
+    }
+
+
+def compare_provider_models(results: Sequence[LotteryResult], split_ratio: float, top_k: int, min_train_size: int = 30) -> Dict[str, object]:
+    provider_targets = ["dau", "duoi", "cham", "tong", "so00_99"]
+    evaluations: List[Dict[str, object]] = []
+    for target_name in provider_targets:
+        preset = target_preset(target_name)
+        metrics = evaluate_named_ranking_backtest(results, split_ratio=split_ratio, target_name="loto2", top_k=top_k, min_train_size=min_train_size, model_name="logistic", selected_signal_names=preset.get("model_signals"))
+        row = asdict(metrics)
+        row["provider_target"] = target_name
+        row["selected_signal_names"] = preset.get("model_signals", [])
+        evaluations.append(row)
+    evaluations.sort(key=lambda item: (-float(item["hit_rate"]), -float(item["precision_at_k"]), str(item["provider_target"]), str(item["model"])))
+    return {
+        "targets": provider_targets,
+        "dataset_size": len(results),
+        "split_ratio": split_ratio,
+        "top_k": top_k,
+        "min_train_size": min_train_size,
+        "evaluations": evaluations,
+        "best_model": evaluations[0] if evaluations else None,
+        "provider_models": provider_model_predictions(results, top_k=top_k, min_train_size=min_train_size),
+    }
+
+
+def compare_specialized_models(results: Sequence[LotteryResult], split_ratio: float, top_k: int, min_train_size: int = 30) -> Dict[str, object]:
+    target_groups = target_preset("loto2")
+    target_name = "loto2"
+    evaluations: List[Dict[str, object]] = []
+    for preset_name in phase6_target_names():
+        preset = target_preset(preset_name)
+        metrics = evaluate_named_ranking_backtest(
+            results,
+            split_ratio=split_ratio,
+            target_name=target_name,
+            top_k=top_k,
+            min_train_size=min_train_size,
+            model_name="logistic",
+            selected_signal_names=preset.get("model_signals"),
+        )
+        row = asdict(metrics)
+        row["preset"] = preset_name
+        row["selected_signal_names"] = preset.get("model_signals", [])
+        evaluations.append(row)
+    evaluations.sort(key=lambda item: (-float(item["hit_rate"]), -float(item["precision_at_k"]), str(item["preset"])))
+    return {
+        "target": target_name,
+        "dataset_size": len(results),
+        "split_ratio": split_ratio,
+        "top_k": top_k,
+        "min_train_size": min_train_size,
+        "evaluations": evaluations,
+        "best_model": evaluations[0]["preset"] if evaluations else None,
+        "presets": target_groups,
+        "ensemble": ensemble_loto2_predictions(results, top_k=top_k, min_train_size=min_train_size),
+    }
+
+
 
 
 def walkforward_ranking_backtest(results: Sequence[LotteryResult], target_name: str, top_k: int, min_train_size: int = 30) -> List[Dict[str, object]]:
@@ -978,6 +1223,7 @@ def walkforward_ranking_backtest(results: Sequence[LotteryResult], target_name: 
         actual = actual_targets(test_result, target_name)
         hit, baseline_hit, precision, baseline_precision = evaluate_prediction_set(weighted_predicted, actual, universe_size)
         freq_hit, _, freq_precision, _ = evaluate_prediction_set(baseline_predicted, actual, universe_size)
+        precision_metrics = evaluation_precision_metrics(weighted_predicted, actual, universe_size)
         rows.append(
             {
                 "date": test_result.date,
@@ -992,9 +1238,48 @@ def walkforward_ranking_backtest(results: Sequence[LotteryResult], target_name: 
                 "predicted": weighted_predicted,
                 "frequency_predicted": baseline_predicted,
                 "actual": actual,
+                "precision_metrics": precision_metrics,
             }
         )
     return rows
+
+
+def summarize_walkforward_rows(rows: Sequence[Dict[str, object]], target_name: str, model_name: str) -> Dict[str, object]:
+    test_size = len(rows)
+    if not test_size:
+        return {"target": target_name, "model": model_name, "test_size": 0, "rows": []}
+    precision_5 = sum(float(row.get("precision_metrics", {}).get("precision@5", row.get("precision", 0.0))) for row in rows) / test_size
+    precision_10 = sum(float(row.get("precision_metrics", {}).get("precision@10", row.get("precision", 0.0))) for row in rows) / test_size
+    roi = sum(float(row.get("precision_metrics", {}).get("roi@5", 0.0)) for row in rows) / test_size
+    hit_rate = sum(int(row.get("hit", 0)) for row in rows) / test_size
+    baseline_hit_rate = sum(float(row.get("baseline_hit", 0.0)) for row in rows) / test_size
+    precision_at_k = sum(float(row.get("precision", 0.0)) for row in rows) / test_size
+    baseline_precision_at_k = sum(float(row.get("baseline_precision", 0.0)) for row in rows) / test_size
+    return {
+        "target": target_name,
+        "model": model_name,
+        "test_size": test_size,
+        "hit_rate": hit_rate,
+        "baseline_hit_rate": baseline_hit_rate,
+        "precision_at_k": precision_at_k,
+        "baseline_precision_at_k": baseline_precision_at_k,
+        "precision@5": precision_5,
+        "precision@10": precision_10,
+        "roi": roi,
+        "rows": list(rows),
+    }
+
+
+def walkforward_yearly_backtest(results: Sequence[LotteryResult], target_name: str = "loto2", top_k: int = 5, min_train_size: int = 30) -> Dict[str, object]:
+    rows = walkforward_ranking_backtest(results, target_name=target_name, top_k=top_k, min_train_size=min_train_size)
+    summary = summarize_walkforward_rows(rows, target_name=target_name, model_name="weighted-ranking")
+    return {"target": target_name, "top_k": top_k, "min_train_size": min_train_size, "summary": summary, "rows": rows}
+
+
+def yearly_backtest_report(results: Sequence[LotteryResult], target_name: str = "loto2", top_k: int = 5, min_train_size: int = 30) -> Dict[str, object]:
+    summaries = yearly_backtest_summaries(results, target_name=target_name, top_k=top_k, min_train_size=min_train_size)
+    return {"target": target_name, "top_k": top_k, "min_train_size": min_train_size, "years": summaries}
+
 
 
 
@@ -1004,6 +1289,7 @@ def build_dashboard_payload(results: Sequence[LotteryResult], split_ratio: float
     walkforward_min_train_size = max(min_train_size, len(results) - 40)
     walkforward_rows = walkforward_ranking_backtest(results, target_name="loto2", top_k=top_k, min_train_size=walkforward_min_train_size)
     latest_date = results[-1].date if results else None
+    top20_candidates = [candidate for candidate, _score in predict_payload.get("loto2_top", [])[:20]]
     return {
         "overview": {
             "dataset_size": len(results),
@@ -1015,6 +1301,11 @@ def build_dashboard_payload(results: Sequence[LotteryResult], split_ratio: float
         },
         "predictions": predict_payload,
         "compare": compare_payload,
+        "top20": {
+            "target": "loto2",
+            "rows": top20_candidates,
+            "count": len(top20_candidates),
+        },
         "walkforward": {
             "target": "loto2",
             "rows": walkforward_rows,
@@ -1043,10 +1334,12 @@ def build_bridge_payload(results: Sequence[LotteryResult], candidates: Sequence[
 
 def enrich_dashboard_payload(results: Sequence[LotteryResult], payload: Dict[str, object]) -> Dict[str, object]:
     loto2_candidates = [number for number, _ in payload["predictions"]["loto2_top"]]
+    top20_candidates = list(payload.get("top20", {}).get("rows", []))
     payload["bridge_signals"] = {
         "loto2": build_bridge_payload(results, loto2_candidates),
     }
     payload["signal_engine"] = build_signal_payload(results, payload["predictions"])
+    payload["top20_details"] = [summarize_signals(results, candidate, "loto2") for candidate in top20_candidates]
     return payload
 
 

@@ -1,0 +1,6 @@
+Starting step 2...
+Imports done
+Functions defined
+Loaded 5896 results
+Loaded freq cache: 587 entries
+Test indices: 587, baseline p=0.0300

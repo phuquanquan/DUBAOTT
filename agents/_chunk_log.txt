@@ -1,0 +1,13 @@
+[0] Starting...
+[0] Data: 5896 rows, 30 test days
+[0] Precompute done (4s)
+[0] Precomputing signal scores...
+[0] day 0/30 (4s)
+[0] day 10/30 (262s)
+[0] day 10/30 (280s)
+[0] day 20/30 (864s)
+[0] day 20/30 (876s)
+[0] All scores precomputed (1875s)
+[0] touch: evaluating...
+[0] All scores precomputed (1912s)
+[0] touch: evaluating...

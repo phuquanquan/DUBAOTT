@@ -1,0 +1,17 @@
+=== Quick Stat Sig Test ===
+Data: 5896 rows, 1174 test days
+Baseline p(hit)=3.00%
+  Precompute: 100/1174 (18s)
+  Precompute: 200/1174 (19s)
+  Precompute: 300/1174 (21s)
+  Precompute: 400/1174 (23s)
+  Precompute: 500/1174 (25s)
+  Precompute: 600/1174 (30s)
+  Precompute: 700/1174 (35s)
+  Precompute: 800/1174 (40s)
+  Precompute: 900/1174 (47s)
+  Precompute: 1000/1174 (54s)
+  Precompute: 1100/1174 (57s)
+Precompute done (59s)
+
+Processing prize_position_penalty...

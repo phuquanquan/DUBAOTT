@@ -1,0 +1,10 @@
+=== Fast Stat Sig Test ===
+Data: 5896 rows, 59 test days
+Baseline p(hit)=3.00%, top_k=3
+Precomputing...
+  20/59 (1s)
+  40/59 (2s)
+Precompute done (4s)
+  touch: starting...
+    day 20/59
+    day 40/59

@@ -1,0 +1,28 @@
+{
+  "dataset_size": 5896,
+  "date_range": "01/01/2010 - 10/06/2026",
+  "test_days": 59,
+  "sampling_every": 100,
+  "config": {
+    "top_k": 3,
+    "universe_size": 100,
+    "min_train_size": 30,
+    "n_permutations": 5000
+  },
+  "theoretical_baseline_pct": 3.0000000000000027,
+  "results": [
+    {
+      "signal": "touch",
+      "test_size": 59,
+      "hits": 36,
+      "hit_rate_pct": 61.016949152542374,
+      "freq_hit_rate_pct": 55.932203389830505,
+      "delta_pct": 5.084745762711873,
+      "theoretical_baseline_pct": 3.0000000000000027,
+      "binom_pvalue": 1.0952883296361207e-39,
+      "binom_significant": true,
+      "ci_lower_pct": 48.26610956186712,
+      "ci_upper_pct": 72.42082393441561,
+      "ci_covers_baseline": false,
+      "perm_pvalue": 0.6900379657745361,
+      "perm_significant": 

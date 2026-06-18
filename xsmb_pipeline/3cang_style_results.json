@@ -1,0 +1,14 @@
+{
+  "model": "3cang_style_RandomForest",
+  "description": "Full special (000-999) -> RandomForest 1000-class ranking",
+  "grand_total": 2493,
+  "grand_hits": {
+    "1": 0,
+    "3": 0,
+    "5": 0,
+    "10": 0,
+    "20": 0,
+    "50": 1,
+    "100": 1
+  }
+}

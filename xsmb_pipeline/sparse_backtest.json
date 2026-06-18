@@ -1,0 +1,12 @@
+{
+  "model": "Sparse_XGBoost",
+  "description": "Sparse matrix (27 prizes/day) -> XGBoost -> predict next-day DB 2cang",
+  "grand_total": 2493,
+  "grand_hits": {
+    "1": 27,
+    "3": 73,
+    "5": 120,
+    "10": 268,
+    "20": 473
+  }
+}

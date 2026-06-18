@@ -1,0 +1,16 @@
+============================================================
+STATISTICAL SIGNIFICANCE TEST - Starting
+============================================================
+Step 1: Load data
+  Data: 5896 rows, 587 test days
+  Baseline p(hit)=0.0300 (3.00%), top_k=3
+Step 2: Build frequency cache
+  freq cache: 100/587 (1s)
+  freq cache: 200/587 (3s)
+  freq cache: 300/587 (4s)
+  freq cache: 400/587 (6s)
+  freq cache: 500/587 (10s)
+  Freq cache done: 16s
+Step 3: Pre-compute actual targets
+  Actuals done: 0s
+Step 4: Process 34 signals

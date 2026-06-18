@@ -2,7 +2,10 @@ import unittest
 
 from xsmb_pipeline.evaluate import all_signals_backtest, ensemble_backtest, signal_backtest, signal_group_backtest, walkforward_signal_backtest
 from xsmb_pipeline.schema import LotteryResult
-from xsmb_pipeline.signals import SIGNAL_DEFINITIONS, signal_group_names
+from xsmb_pipeline.signals import (
+    SIGNAL_DEFINITIONS, signal_group_names,
+    days_since_last_score, prize_position_penalty_score, thirty_day_frequency_penalty_score,
+)
 
 
 def build_result(day: int, special: str, first: str, second: list[str], third: list[str], fourth: list[str], fifth: list[str], sixth: list[str], seventh: list[str]) -> LotteryResult:
@@ -29,6 +32,93 @@ def sample_results() -> list[LotteryResult]:
         build_result(5, "77889", "43210", ["56565", "78787"], ["80808", "91919", "12012", "23023", "34034", "45045"], ["5566", "6677", "7788", "8899"], ["4321", "5432", "6543", "7654", "8765", "9876"], ["444", "555", "666"], ["90", "01", "12", "23"]),
         build_result(6, "99001", "21098", ["90909", "80808"], ["10101", "21212", "32323", "43434", "54545", "65656"], ["9081", "8172", "7263", "6354"], ["2468", "1357", "0246", "9135", "8024", "7913"], ["777", "888", "999"], ["34", "45", "56", "67"]),
     ]
+
+
+# --- Tests for Junlangzi Scoring Algorithms ---
+
+class JunlangziScoringTests(unittest.TestCase):
+    def test_days_since_last_score_returns_valid_score(self):
+        results = sample_results()
+        sig = days_since_last_score(results, "99", "loto2")
+        self.assertEqual(sig.name, "days_since_last")
+        self.assertGreaterEqual(sig.score, 0.0)
+        self.assertLessEqual(sig.score, 1.0)
+        self.assertIn("days", sig.details)
+
+    def test_days_since_last_score_zero_for_recent_appearance(self):
+        results = sample_results()
+        sig = days_since_last_score(results, "45", "loto2")
+        self.assertEqual(sig.details["days"], 0)
+
+    def test_days_since_last_score_returns_nonzero_days(self):
+        results = sample_results()
+        sig = days_since_last_score(results, "99", "loto2")
+        self.assertIn("days", sig.details)
+
+    def test_days_since_last_score_returns_zero_for_non_loto2(self):
+        results = sample_results()
+        sig = days_since_last_score(results, "5", "dau")
+        self.assertEqual(sig.score, 0.0)
+
+    def test_prize_position_penalty_score_returns_valid_signal(self):
+        results = sample_results()
+        sig = prize_position_penalty_score(results, "45", "loto2")
+        self.assertEqual(sig.name, "prize_position_penalty")
+        self.assertGreaterEqual(sig.score, 0.0)
+        self.assertLessEqual(sig.score, 1.0)
+        self.assertIn("matched_prizes", sig.details)
+
+    def test_prize_position_penalty_score_match_count(self):
+        results = sample_results()
+        sig = prize_position_penalty_score(results, "45", "loto2")
+        self.assertGreater(sig.details["matched_prizes"], 0)
+
+    def test_prize_position_penalty_score_no_match(self):
+        results = sample_results()
+        sig = prize_position_penalty_score(results, "66", "loto2")
+        self.assertEqual(sig.details["matched_prizes"], 0)
+
+    def test_prize_position_penalty_returns_zero_for_non_loto2(self):
+        results = sample_results()
+        sig = prize_position_penalty_score(results, "5", "dau")
+        self.assertEqual(sig.score, 0.0)
+
+    def test_thirty_day_frequency_penalty_score_returns_valid_signal(self):
+        results = sample_results()
+        sig = thirty_day_frequency_penalty_score(results, "45", "loto2")
+        self.assertEqual(sig.name, "thirty_day_freq_penalty")
+        self.assertGreaterEqual(sig.score, 0.0)
+        self.assertLessEqual(sig.score, 1.0)
+
+    def test_thirty_day_frequency_penalty_score_appeared(self):
+        results = sample_results()
+        sig = thirty_day_frequency_penalty_score(results, "45", "loto2")
+        self.assertIn("appeared", sig.details)
+
+    def test_thirty_day_frequency_penalty_returns_zero_for_non_loto2(self):
+        results = sample_results()
+        sig = thirty_day_frequency_penalty_score(results, "5", "dau")
+        self.assertEqual(sig.score, 0.0)
+
+    def test_new_signals_appear_in_signal_definitions(self):
+        names = {d.name for d in SIGNAL_DEFINITIONS}
+        self.assertIn("days_since_last", names)
+        self.assertIn("prize_position_penalty", names)
+        self.assertIn("thirty_day_freq_penalty", names)
+
+    def test_new_signals_in_ensemble_names(self):
+        from xsmb_pipeline.signals import TARGET_ENSEMBLE_SIGNAL_NAMES
+        ens = TARGET_ENSEMBLE_SIGNAL_NAMES["loto2"]
+        self.assertIn("days_since_last", ens)
+        self.assertIn("prize_position_penalty", ens)
+        self.assertIn("thirty_day_freq_penalty", ens)
+
+    def test_new_signals_in_model_names(self):
+        from xsmb_pipeline.signals import TARGET_MODEL_SIGNAL_NAMES
+        model = TARGET_MODEL_SIGNAL_NAMES["loto2"]
+        self.assertIn("days_since_last", model)
+        self.assertIn("prize_position_penalty", model)
+        self.assertIn("thirty_day_freq_penalty", model)
 
 
 class SignalBacktestTests(unittest.TestCase):
@@ -73,6 +163,15 @@ class SignalBacktestTests(unittest.TestCase):
         self.assertEqual(payload["signal"], "ensemble")
         self.assertEqual(payload["evaluation"]["signal"], "ensemble")
         self.assertIn(payload["evaluation"]["research_verdict"], {"keep", "watch", "drop"})
+
+    def test_walkforward_yearly_backtest_exposes_precision_and_roi(self):
+        from xsmb_pipeline.evaluate import walkforward_yearly_backtest
+        payload = walkforward_yearly_backtest(sample_results(), target_name="loto2", top_k=3, min_train_size=3)
+        self.assertEqual(payload["target"], "loto2")
+        self.assertIn("summary", payload)
+        self.assertIn("precision@5", payload["summary"])
+        self.assertIn("precision@10", payload["summary"])
+        self.assertIn("roi", payload["summary"])
 
     def test_filter_summary_tracks_kept_groups_and_signals(self):
         payload = all_signals_backtest(sample_results(), target_name="loto2", top_k=3, min_train_size=3, recent_rows=2)

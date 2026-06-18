@@ -1,0 +1,40 @@
+Setup complete
+Results: 5896
+Cache: 587
+Signals: 34
+Test indices: 587
+Starting main loop...
+[0] touch: START
+[0] touch: day 0 START, split_idx=30
+[0] touch: day 0 got actual=('08', '10', '11', '14', '15', '16', '24', '35', '37', '38', '44', '49', '51', '54', '56', '60', '62', '63', '69', '70', '73', '75', '78', '89', '99')
+[0] touch: day 0 got ranked=[('09', 0.40109140518417463), ('90', 0.40109140518417463), ('08', 0.39017735334242837)]
+[0] touch: day 0 hit=1, prec=0.3333333333333333
+[0] touch: day 100 OK
+[0] touch: day 200 OK
+[0] touch: day 300 OK
+[0] touch: day 400 OK
+[0] touch: day 500 OK
+[0] touch: DONE, total_hits=TBD
+[1] inversion: START
+[1] inversion: day 0 START, split_idx=30
+[1] inversion: day 0 got actual=('08', '10', '11', '14', '15', '16', '24', '35', '37', '38', '44', '49', '51', '54', '56', '60', '62', '63', '69', '70', '73', '75', '78', '89', '99')
+[1] inversion: day 0 got ranked=[('98', 0.023192360163710776), ('95', 0.019099590723055934), ('96', 0.017735334242837655)]
+[1] inversion: day 0 hit=0, prec=0.0
+[1] inversion: day 100 OK
+[1] inversion: day 200 OK
+[1] inversion: day 300 OK
+[1] inversion: day 400 OK
+[1] inversion: day 500 OK
+[1] inversion: DONE, total_hits=TBD
+[2] fibonacci: START
+[2] fibonacci: day 0 START, split_idx=30
+[2] fibonacci: day 0 got actual=('08', '10', '11', '14', '15', '16', '24', '35', '37', '38', '44', '49', '51', '54', '56', '60', '62', '63', '69', '70', '73', '75', '78', '89', '99')
+[2] fibonacci: day 0 got ranked=[('00', 1.0), ('01', 0.5), ('02', 0.3333333333333333)]
+[2] fibonacci: day 0 hit=0, prec=0.0
+[2] fibonacci: day 100 OK
+[2] fibonacci: day 200 OK
+[2] fibonacci: day 300 OK
+[2] fibonacci: day 400 OK
+[2] fibonacci: day 500 OK
+[2] fibonacci: DONE, total_hits=TBD
+DONE

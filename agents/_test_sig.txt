@@ -1,0 +1,6 @@
+starting
+loaded 5896 in 0.6s
+test indices: 587
+candidates: 100
+touch 100 cand: 0.8s
+touch 10 days: 6.2s

@@ -1,0 +1,233 @@
+{
+  "n_results": 5896,
+  "patterns": [
+    {
+      "name": "Overdue gap>0.95 (top1)",
+      "hit_rate": 5.4613935969868175,
+      "hits": 116,
+      "total": 2124
+    },
+    {
+      "name": "Near-max gap (|ratio-1|<0.05) -> top1",
+      "hit_rate": 5.4613935969868175,
+      "hits": 116,
+      "total": 2124
+    },
+    {
+      "name": "G1->DB digit share (top3 gap-ranked)",
+      "hit_rate": 3.5294117647058822,
+      "hits": 207,
+      "total": 5865
+    },
+    {
+      "name": "Near-max gap (|ratio-1|<0.1) -> top1",
+      "hit_rate": 3.509249183895539,
+      "hits": 129,
+      "total": 3676
+    },
+    {
+      "name": "Overdue gap>0.9 (top1)",
+      "hit_rate": 3.4886890160806763,
+      "hits": 128,
+      "total": 3669
+    },
+    {
+      "name": "DB(G1 share) -> G1->DB (top3)",
+      "hit_rate": 3.0988686669945893,
+      "hits": 63,
+      "total": 2033
+    },
+    {
+      "name": "G1 shares with DB-3ago -> G1->DB top3",
+      "hit_rate": 3.0592734225621414,
+      "hits": 64,
+      "total": 2092
+    },
+    {
+      "name": "Overdue gap>0.9 AND G1 shares -> top1 gap",
+      "hit_rate": 2.8759736369083284,
+      "hits": 48,
+      "total": 1669
+    },
+    {
+      "name": "DB sum mod10 -> bet numbers with same sum mod10 (top3)",
+      "hit_rate": 2.871174914998111,
+      "hits": 152,
+      "total": 5294
+    },
+    {
+      "name": "Overdue gap>0.8 (top1)",
+      "hit_rate": 2.837812441270438,
+      "hits": 151,
+      "total": 5321
+    },
+    {
+      "name": "Near-max gap (|ratio-1|<0.2) -> top1",
+      "hit_rate": 2.835680751173709,
+      "hits": 151,
+      "total": 5325
+    },
+    {
+      "name": "Overdue gap>0.7 (top1)",
+      "hit_rate": 2.7031802120141344,
+      "hits": 153,
+      "total": 5660
+    },
+    {
+      "name": "Cold 3d (not appeared) -> bet top1 gap",
+      "hit_rate": 2.608695652173913,
+      "hits": 153,
+      "total": 5865
+    },
+    {
+      "name": "Cold 5d (not appeared) -> bet top1 gap",
+      "hit_rate": 2.608695652173913,
+      "hits": 153,
+      "total": 5865
+    },
+    {
+      "name": "Cold 7d (not appeared) -> bet top1 gap",
+      "hit_rate": 2.608695652173913,
+      "hits": 153,
+      "total": 5865
+    },
+    {
+      "name": "Cold 14d (not appeared) -> bet top1 gap",
+      "hit_rate": 2.608695652173913,
+      "hits": 153,
+      "total": 5865
+    },
+    {
+      "name": "G1 digit + overdue>0.7 -> top1 gap",
+      "hit_rate": 1.786896095301125,
+      "hits": 81,
+      "total": 4533
+    },
+    {
+      "name": "G1 digit + overdue>0.7 -> top1 gap",
+      "hit_rate": 1.786896095301125,
+      "hits": 81,
+      "total": 4533
+    },
+    {
+      "name": "Cycle 14d (DB now == DB 14d ago) -> bet it",
+      "hit_rate": 1.7857142857142856,
+      "hits": 1,
+      "total": 56
+    },
+    {
+      "name": "Cycle 7d (DB now == DB 7d ago) -> bet it",
+      "hit_rate": 1.694915254237288,
+      "hits": 1,
+      "total": 59
+    },
+    {
+      "name": "DB diff<5 -> bet numbers with same diff (top1)",
+      "hit_rate": 1.3336626327488268,
+      "hits": 54,
+      "total": 4049
+    },
+    {
+      "name": "G1 last digit frequency -> DB last digit (top1)",
+      "hit_rate": 1.1405374057606803,
+      "hits": 59,
+      "total": 5173
+    },
+    {
+      "name": "G1 last digit -> DB last digit (top1)",
+      "hit_rate": 1.1253196930946292,
+      "hits": 66,
+      "total": 5865
+    },
+    {
+      "name": "G1(T-1) last digit -> DB last digit (top1)",
+      "hit_rate": 1.1253196930946292,
+      "hits": 66,
+      "total": 5865
+    },
+    {
+      "name": "Reverse (T-1 DB) -> bet reverse",
+      "hit_rate": 1.1082693947144073,
+      "hits": 65,
+      "total": 5865
+    },
+    {
+      "name": "Mirror (9-d1, 9-d2) -> bet mirror",
+      "hit_rate": 1.040068201193521,
+      "hits": 61,
+      "total": 5865
+    },
+    {
+      "name": "Same Day-of-Week DB repeat (bet prev same DOW)",
+      "hit_rate": 1.0230179028132993,
+      "hits": 60,
+      "total": 5865
+    },
+    {
+      "name": "G1 both digits -> bet numbers with BOTH digits (top1)",
+      "hit_rate": 1.0059676044330774,
+      "hits": 59,
+      "total": 5865
+    },
+    {
+      "name": "Pascal (T-1 DB) -> bet pascal",
+      "hit_rate": 0.9889173060528559,
+      "hits": 58,
+      "total": 5865
+    },
+    {
+      "name": "DB last digit (T-1) -> bet same last digit (top1)",
+      "hit_rate": 0.984102952308857,
+      "hits": 52,
+      "total": 5284
+    },
+    {
+      "name": "DB roi thanh loto -> bet digits of DB (top1)",
+      "hit_rate": 0.7331378299120235,
+      "hits": 10,
+      "total": 1364
+    },
+    {
+      "name": "First digit repeats (T-1[0]==T-2[0]) -> top1 first digit",
+      "hit_rate": 0.6546644844517185,
+      "hits": 4,
+      "total": 611
+    },
+    {
+      "name": "Burst>= 2/3d -> bet top1 gap",
+      "hit_rate": 0.5376344086021506,
+      "hits": 1,
+      "total": 186
+    },
+    {
+      "name": "Consecutive DB (T-1==T-2 -> bet T-1)",
+      "hit_rate": 0.0,
+      "hits": 0,
+      "total": 68
+    },
+    {
+      "name": "3 Consecutive DBs (T-1==T-2==T-3)",
+      "hit_rate": 0,
+      "hits": 0,
+      "total": 0
+    },
+    {
+      "name": "Burst>= 3/3d -> bet top1 gap",
+      "hit_rate": 0,
+      "hits": 0,
+      "total": 0
+    },
+    {
+      "name": "Cycle 30d (DB now == DB 30d ago) -> bet it",
+      "hit_rate": 0.0,
+      "hits": 0,
+      "total": 49
+    },
+    {
+      "name": "Overdue gap>1.0 (top1)",
+      "hit_rate": 0,
+      "hits": 0,
+      "total": 0
+    }
+  ]
+}

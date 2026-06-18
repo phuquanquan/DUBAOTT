@@ -6,7 +6,8 @@ from datetime import datetime
 from typing import Callable, Dict, List, Sequence
 
 from .features import (
-    bridge_frequency, bridge_streak, cham_match_score, db_position_score, digit_part_frequency, digit_position_frequency, digit_transition_score, falling_from_first, falling_from_special, falling_score, g1_position_score, gan_max_ratio, gan_mean_score, rolling_frequency, target_items, tong_de_match_score, tong_lo_match_score)
+    bridge_frequency, bridge_streak, cham_match_score, db_position_score, digit_part_frequency, digit_position_frequency, digit_transition_score, falling_from_first, falling_from_special, falling_score, g1_position_score, gan_max_ratio, gan_mean_score, rolling_frequency, target_items, tong_de_match_score, tong_lo_match_score,
+    cross_position_combo_score, cross_position_combo_lead_score)
 from .schema import LotteryResult
 from .targets import actual_targets, target_width
 
@@ -306,6 +307,207 @@ def freq_5d_score(results: Sequence[LotteryResult], candidate: str, target_name:
     return SignalScore("freq_5d", score, {"window": 5})
 
 
+# ============================================================
+# Junlangzi Scoring Algorithms (port tu Lottery-Predictor)
+# ============================================================
+
+def _days_since_last_appearance(results: Sequence[LotteryResult], candidate: str, target_name: str) -> int:
+    """Tra ve so ngay chua xuat hien cua candidate (0 = hom qua)."""
+    rows = list(results)
+    width = target_width(target_name)
+    target_candidates = {f"{i:0{width}d}" for i in range(10**width)}
+    if candidate not in target_candidates:
+        return len(rows)
+    target_items_set = set(target_items(rows, target_name))
+    for offset, result in enumerate(reversed(rows), start=1):
+        if candidate in set(actual_targets(result, target_name)):
+            return offset - 1
+    return len(rows)
+
+
+def days_since_last_score(results: Sequence[LotteryResult], candidate: str, target_name: str) -> SignalScore:
+    """DaysSinceLastAppearance - Cong diem theo ngay vo mat, milestone bonus, progressive bonus.
+
+    Port tu: thuat_toan_test_01.py (junlangzi/Lottery-Predictor)
+    """
+    rows = list(results)
+    width = target_width(target_name)
+    if width != 2:
+        return SignalScore("days_since_last", 0.0, {"days": 0, "candidate": candidate})
+
+    num = int(candidate)
+    params = {
+        "base_increment_per_day": 0.1,
+        "milestone_bonus": 0.1,
+        "milestones": [3, 7, 10, 15],
+        "last_day_multiplier": 0.05,
+        "progressive_start_day": 15,
+        "progressive_increment": 0.1,
+    }
+    days_absent = _days_since_last_appearance(rows, candidate, target_name)
+
+    score = days_absent * params["base_increment_per_day"]
+
+    for milestone in params["milestones"]:
+        if days_absent >= milestone:
+            score += params["milestone_bonus"]
+
+    if days_absent >= params["progressive_start_day"]:
+        n = days_absent - params["progressive_start_day"]
+        score += params["progressive_increment"] * n * (n + 1) / 2
+
+    if rows:
+        last_numbers = set(actual_targets(rows[-1], target_name))
+        if num in last_numbers:
+            score += params["last_day_multiplier"]
+
+    return SignalScore("days_since_last", clamp(score / 10.0), {
+        "days": days_absent,
+        "candidate": candidate,
+    })
+
+
+def prize_position_penalty_score(results: Sequence[LotteryResult], candidate: str, target_name: str) -> SignalScore:
+    """PrizePositionPenalty - Phat diem dua tren vi tri giai nguoc cua ngay gan nhat.
+
+    Port tu: thuat_toan_test_02.py (junlangzi/Lottery-Predictor)
+    Chi ap dung cho target loto2.
+
+    Y tuong: So xuat hien o giai 7 (cuoi) -> phat nhieu.
+              So xuat hien o giai DB (dau) -> phat it.
+    """
+    rows = list(results)
+    width = target_width(target_name)
+    if width != 2 or not rows:
+        return SignalScore("prize_position_penalty", 0.0, {})
+
+    num = int(candidate)
+
+    REVERSE_POSITION_MAP: dict[str, int] = {
+        "special": 27, "db": 27,
+        "first": 26,
+        "second": 25, "second_1": 25, "second_2": 24,
+        "third": 23, "third_1": 23, "third_2": 22, "third_3": 21,
+        "third_4": 20, "third_5": 19, "third_6": 18,
+        "fourth": 17, "fourth_1": 17, "fourth_2": 16, "fourth_3": 15, "fourth_4": 14,
+        "fifth": 13, "fifth_1": 13, "fifth_2": 12, "fifth_3": 11,
+        "fifth_4": 10, "fifth_5": 9, "fifth_6": 8,
+        "sixth": 7, "sixth_1": 7, "sixth_2": 6, "sixth_3": 5,
+        "seventh": 4, "seventh_1": 4, "seventh_2": 3, "seventh_3": 2, "seventh_4": 1,
+    }
+
+    def extract_last_2digit(value: str) -> int | None:
+        s = str(value).strip()
+        if len(s) >= 2 and s[-2:].isdigit():
+            return int(s[-2:])
+        if len(s) == 1 and s.isdigit():
+            return int(s)
+        return None
+
+    last_row = rows[-1]
+    penalty = 0.0
+    matched_prizes = 0
+
+    prize_attr_map = [
+        ("special", [last_row.special]),
+        ("first", last_row.first),
+        ("second", last_row.second),
+        ("third", last_row.third),
+        ("fourth", last_row.fourth),
+        ("fifth", last_row.fifth),
+        ("sixth", last_row.sixth),
+        ("seventh", last_row.seventh),
+    ]
+
+    for prize_name, prize_values in prize_attr_map:
+        rev_pos = REVERSE_POSITION_MAP.get(prize_name.lower(), 1)
+        for val in prize_values:
+            extracted = extract_last_2digit(val)
+            if extracted == num:
+                penalty += 0.1 * rev_pos
+                matched_prizes += 1
+
+    normalized = clamp(penalty / 10.0)
+    return SignalScore("prize_position_penalty", normalized, {
+        "matched_prizes": matched_prizes,
+        "penalty_raw": penalty,
+    })
+
+
+def thirty_day_frequency_penalty_score(results: Sequence[LotteryResult], candidate: str, target_name: str) -> SignalScore:
+    """ThirtyDayFrequencyPenalty - Phat nhom it xuat hien, thuong nhom chua xuat hien.
+
+    Port tu: thuat_toan_test_03.py (junlangzi/Lottery-Predictor)
+    """
+    rows = list(results)
+    width = target_width(target_name)
+    if width != 2:
+        return SignalScore("thirty_day_freq_penalty", 0.0, {})
+
+    history_days = 30
+    num = int(candidate)
+
+    cutoff = rows[-history_days:] if len(rows) > history_days else list(rows)
+    if not cutoff:
+        return SignalScore("thirty_day_freq_penalty", 1.0, {"appeared": False})
+
+    all_counts: Counter[int] = Counter()
+    for result in cutoff:
+        all_counts.update(int(x) for x in actual_targets(result, target_name))
+
+    universe = set(range(100))
+    appeared = set(all_counts.keys())
+    never_appeared = universe - appeared
+
+    score = 0.0
+    if num in never_appeared:
+        score = 0.5
+    else:
+        freq_groups: dict[int, list[int]] = {}
+        for n, cnt in all_counts.items():
+            freq_groups.setdefault(cnt, []).append(n)
+        sorted_freqs = sorted(freq_groups.keys())
+
+        if sorted_freqs:
+            min_penalty = -0.1
+            inc = -0.1
+            current = min_penalty
+            for freq in sorted_freqs:
+                group = freq_groups[freq]
+                if num in group:
+                    score = clamp(abs(current) / 2.0)
+                    break
+                current += inc
+
+    return SignalScore("thirty_day_freq_penalty", score, {
+        "appeared": num in appeared,
+        "frequency": all_counts.get(num, 0),
+    })
+
+
+def cross_pos_combo_score(results: Sequence[LotteryResult], candidate: str, target_name: str) -> SignalScore:
+    """Cross-Position Combo - Ghep chu so tu 2 vi tri bat ky, tao cap 2 chu so.
+
+    47 cap vi tri curated (DB+DB, DB+G7_3, G2+G7, ...), kiem tra xem
+    moi cap co xuat hien trong loto2 ngay hom sau hay khong.
+    Tinh tan suat chung xuat hien trong 90 ngay gan nhat.
+    """
+    score = cross_position_combo_score(list(results), candidate, target_name, lookback=90)
+    return SignalScore("cross_pos_combo", clamp(score * 10.0), {"lookback": 90})
+
+
+def cross_pos_combo_2d_score(results: Sequence[LotteryResult], candidate: str, target_name: str) -> SignalScore:
+    """Cross-Position Combo +2d - Ghep 2 vi tri, cho 2 ngay roi kiem tra."""
+    score = cross_position_combo_lead_score(list(results), candidate, target_name, lookback=90, delay=2)
+    return SignalScore("cross_pos_combo_2d", clamp(score * 10.0), {"lookback": 90, "delay": 2})
+
+
+def cross_pos_combo_3d_score(results: Sequence[LotteryResult], candidate: str, target_name: str) -> SignalScore:
+    """Cross-Position Combo +3d - Ghep 2 vi tri, cho 3 ngay roi kiem tra."""
+    score = cross_position_combo_lead_score(list(results), candidate, target_name, lookback=90, delay=3)
+    return SignalScore("cross_pos_combo_3d", clamp(score * 10.0), {"lookback": 90, "delay": 3})
+
+
 SIGNAL_DEFINITIONS: List[SignalDefinition] = [
     SignalDefinition("touch", "Cham", "cau", 0.08, touch_score),
     SignalDefinition("inversion", "Dao so", "cau", 0.06, inversion_score),
@@ -337,6 +539,13 @@ SIGNAL_DEFINITIONS: List[SignalDefinition] = [
     SignalDefinition("gan_max_ratio", "Gan max ratio", "gan", 0.04, gan_max_signal),
     SignalDefinition("freq_3d", "Tan suat 3 ngay", "freq", 0.05, freq_3d_score),
     SignalDefinition("freq_5d", "Tan suat 5 ngay", "freq", 0.04, freq_5d_score),
+    # --- Junlangzi Scoring Algorithms ---
+    SignalDefinition("days_since_last", "Ngay vo mat", "gan", 0.06, days_since_last_score),
+    SignalDefinition("prize_position_penalty", "Phat vi tri giai", "gan", 0.05, prize_position_penalty_score),
+    SignalDefinition("thirty_day_freq_penalty", "30d tan suat phat", "gan", 0.05, thirty_day_frequency_penalty_score),
+    SignalDefinition("cross_pos_combo", "Cross vi tri combo", "cau_vi_tri", 0.10, cross_pos_combo_score),
+    SignalDefinition("cross_pos_combo_2d", "Cross vi tri +2d", "cau_vi_tri", 0.08, cross_pos_combo_2d_score),
+    SignalDefinition("cross_pos_combo_3d", "Cross vi tri +3d", "cau_vi_tri", 0.06, cross_pos_combo_3d_score),
 ]
 
 
@@ -354,7 +563,7 @@ MODEL_SIGNAL_NAMES = {
 
 
 TARGET_MODEL_SIGNAL_NAMES = {
-    "loto2": MODEL_SIGNAL_NAMES | {"touch", "inversion", "position", "head_tail_link", "cham", "db_position", "g1_position"},
+    "loto2": MODEL_SIGNAL_NAMES | {"touch", "inversion", "position", "head_tail_link", "cham", "db_position", "g1_position", "days_since_last", "prize_position_penalty", "thirty_day_freq_penalty"},
 }
 
 
@@ -385,6 +594,14 @@ TARGET_ENSEMBLE_SIGNAL_NAMES = {
         "gan_max_ratio",
         "freq_3d",
         "freq_5d",
+        # Junlangzi Scoring Algorithms
+        "days_since_last",
+        "prize_position_penalty",
+        "thirty_day_freq_penalty",
+        # Cross-Position Bridge
+        "cross_pos_combo",
+        "cross_pos_combo_2d",
+        "cross_pos_combo_3d",
     },
 }
 
@@ -434,6 +651,27 @@ MODEL_ENSEMBLE_SIGNAL_NAMES = {
     "freq_3d",
     "freq_5d",
 }
+
+
+TARGET_PRESETS = {
+    "loto2": {
+        "model_signals": sorted(TARGET_MODEL_SIGNAL_NAMES["loto2"]),
+        "ensemble_signals": sorted(TARGET_ENSEMBLE_SIGNAL_NAMES["loto2"]),
+    },
+    "dau": {"model_signals": ["touch", "position", "hot_trend", "cold_return", "symmetry"], "ensemble_signals": ["touch", "position", "hot_trend", "cold_return", "symmetry"]},
+    "duoi": {"model_signals": ["touch", "position", "hot_trend", "cold_return", "symmetry"], "ensemble_signals": ["touch", "position", "hot_trend", "cold_return", "symmetry"]},
+    "cham": {"model_signals": ["cham", "touch", "position", "head_tail_link", "symmetry"], "ensemble_signals": ["cham", "touch", "position", "head_tail_link", "symmetry"]},
+    "tong": {"model_signals": ["tong_de", "tong_lo", "mod10_balance", "symmetry", "hot_trend"], "ensemble_signals": ["tong_de", "tong_lo", "mod10_balance", "symmetry", "hot_trend"]},
+    "so00_99": {"model_signals": ["symmetry", "head_tail_link", "repeat_pair", "mod10_balance", "digit_band"], "ensemble_signals": ["symmetry", "head_tail_link", "repeat_pair", "mod10_balance", "digit_band"]},
+}
+
+
+def target_preset(target_name: str) -> Dict[str, List[str]]:
+    return TARGET_PRESETS.get(target_name, TARGET_PRESETS["loto2"])
+
+
+def phase6_target_names() -> List[str]:
+    return ["dau", "duoi", "cham", "tong", "so00_99"]
 
 
 def signal_vector(results: Sequence[LotteryResult], candidate: str, target_name: str, selected_signal_names: Sequence[str] | None = None) -> List[float]:
@@ -544,10 +782,15 @@ def summarize_signals(results: Sequence[LotteryResult], candidate: str, target_n
     score_by_name = {signal.name: signal.score for signal in signal_rows}
     total_weight = sum(definition.weight for definition in SIGNAL_DEFINITIONS)
     weighted_score = sum(score_by_name.get(definition.name, 0.0) * definition.weight for definition in SIGNAL_DEFINITIONS)
+    ordered_signals = sorted(signal_rows, key=lambda signal: (-float(signal.score), signal.name))
+    top_signals = [asdict(signal) for signal in ordered_signals[:5]]
+    top_reasons = [signal["name"] for signal in top_signals[:3]]
     return {
         "candidate": candidate,
         "target": target_name,
         "signal_score": weighted_score / total_weight if total_weight else 0.0,
+        "top_signals": top_signals,
+        "top_reasons": top_reasons,
         "signals": [asdict(signal) for signal in signal_rows],
     }
 

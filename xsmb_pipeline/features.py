@@ -15,7 +15,10 @@ _target_items_cache: Dict[tuple, List[str]] = {}
 
 
 def target_items(results: List[LotteryResult], target_name: str) -> List[str]:
-    key = (id(results[0]) if results else 0, len(results), target_name)
+    if not results:
+        return []
+    result_ids = tuple(id(r) for r in results)
+    key = (result_ids, target_name)
     cached = _target_items_cache.get(key)
     if cached is not None:
         return cached
@@ -413,3 +416,243 @@ def g1_position_score(results: List[LotteryResult], candidate: str, target_name:
         freq = position_frequency(results, candidate, f"G1_V{i}")
         score += freq
     return score / 5.0
+
+
+# ============================================================
+# Cross-Position Bridge (Soi cau bang cach ghep chu so tu 2 vi tri)
+# VD: Hang tram giai 2 + Hang don vi giai 7 thu 3 = 1 cap loto
+# ============================================================
+
+from typing import NamedTuple, Optional
+
+
+class PrizePosition(NamedTuple):
+    """Mot vi tri trong ket qua xo so: ten giai + chi so (neu co) + chi so chu so."""
+    prize: str          # special, first, second, third, fourth, fifth, sixth, seventh
+    index: int          # 0-based index trong danh sach giai (VD: seventh[2] -> index=2)
+    digit: int          # vi tri chu so: 0 = hang don vi (rightmost), -1 = hang chuc, -2 = hang tram
+
+    def label(self) -> str:
+        idx_str = f"_{self.index}" if self.index > 0 else ""
+        dig_str = ["V1", "V2", "V3", "V4", "V5", "V6"][self.digit] if self.digit >= 0 else ""
+        return f"{self.prize}{idx_str}_{dig_str}"
+
+
+def _get_digit_at(result: LotteryResult, pos: PrizePosition) -> Optional[str]:
+    """Trich xuat 1 chu so tai vi tri pos tu result. None neu khong co."""
+    attr_map = {
+        "special": result.special,
+        "first":   result.first[0] if result.first else "",
+        "second":  result.second[pos.index] if pos.index < len(result.second) else "",
+        "third":   result.third[pos.index]  if pos.index < len(result.third)  else "",
+        "fourth":  result.fourth[pos.index] if pos.index < len(result.fourth) else "",
+        "fifth":   result.fifth[pos.index]   if pos.index < len(result.fifth)   else "",
+        "sixth":   result.sixth[pos.index]   if pos.index < len(result.sixth)   else "",
+        "seventh": result.seventh[pos.index] if pos.index < len(result.seventh) else "",
+    }
+    prize_str = attr_map.get(pos.prize, "")
+    if not prize_str:
+        return None
+    digits = [ch for ch in prize_str if ch.isdigit()]
+    if pos.digit < 0:
+        idx = len(digits) + pos.digit
+    else:
+        idx = pos.digit
+    if idx < 0 or idx >= len(digits):
+        return None
+    return digits[idx]
+
+
+def _build_cross_combo(result: LotteryResult, left: PrizePosition, right: PrizePosition) -> Optional[str]:
+    """Ghep 2 chu so tu 2 vi tri thanh 1 cap 2 chu so. None neu khong trich xuat duoc."""
+    d_left  = _get_digit_at(result, left)
+    d_right = _get_digit_at(result, right)
+    if d_left is None or d_right is None:
+        return None
+    return d_left + d_right
+
+
+def _all_prize_positions() -> List[PrizePosition]:
+    """Tao tat ca cac vi tri co the co trong 1 ket qua XSMB."""
+    positions: List[PrizePosition] = []
+
+    # DB: 5 chu so -> 5 vi tri
+    for d in range(5):
+        positions.append(PrizePosition("special", 0, d))
+
+    # First: 5 chu so -> 5 vi tri
+    for d in range(5):
+        positions.append(PrizePosition("first", 0, d))
+
+    # Second: 2 giai, moi giai 5 chu so
+    for idx in range(2):
+        for d in range(5):
+            positions.append(PrizePosition("second", idx, d))
+
+    # Third: 6 giai, moi giai 5 chu so
+    for idx in range(6):
+        for d in range(5):
+            positions.append(PrizePosition("third", idx, d))
+
+    # Fourth: 4 giai, moi giai 5 chu so
+    for idx in range(4):
+        for d in range(5):
+            positions.append(PrizePosition("fourth", idx, d))
+
+    # Fifth: 6 giai, moi giai 4 chu so
+    for idx in range(6):
+        for d in range(4):
+            positions.append(PrizePosition("fifth", idx, d))
+
+    # Sixth: 3 giai, moi giai 4 chu so
+    for idx in range(3):
+        for d in range(4):
+            positions.append(PrizePosition("sixth", idx, d))
+
+    # Seventh: 4 giai, moi giai 3 chu so
+    for idx in range(4):
+        for d in range(3):
+            positions.append(PrizePosition("seventh", idx, d))
+
+    return positions
+
+
+ALL_PRIZE_POSITIONS: List[PrizePosition] = _all_prize_positions()
+
+# Chi dinh truoc 1 so cap hay dung (thu cong)
+CURATED_POSITION_PAIRS: List[tuple[PrizePosition, PrizePosition]] = [
+    # DB + DB
+    (PrizePosition("special", 0, 1), PrizePosition("special", 0, 3)),
+    (PrizePosition("special", 0, 2), PrizePosition("special", 0, 4)),
+    (PrizePosition("special", 0, 0), PrizePosition("special", 0, 3)),
+    (PrizePosition("special", 0, 1), PrizePosition("special", 0, 4)),
+    # DB + First
+    (PrizePosition("special", 0, 1), PrizePosition("first", 0, 3)),
+    (PrizePosition("special", 0, 0), PrizePosition("first", 0, 4)),
+    (PrizePosition("special", 0, 2), PrizePosition("first", 0, 0)),
+    # DB + Second
+    (PrizePosition("special", 0, 1), PrizePosition("second", 0, 3)),
+    (PrizePosition("special", 0, 0), PrizePosition("second", 1, 4)),
+    # DB + Third
+    (PrizePosition("special", 0, 1), PrizePosition("third", 0, 3)),
+    (PrizePosition("special", 0, 0), PrizePosition("third", 2, 4)),
+    # DB + Fourth
+    (PrizePosition("special", 0, 1), PrizePosition("fourth", 0, 3)),
+    (PrizePosition("special", 0, 0), PrizePosition("fourth", 2, 4)),
+    # DB + Fifth
+    (PrizePosition("special", 0, 1), PrizePosition("fifth", 0, 3)),
+    (PrizePosition("special", 0, 0), PrizePosition("fifth", 3, 3)),
+    # DB + Sixth
+    (PrizePosition("special", 0, 1), PrizePosition("sixth", 0, 3)),
+    (PrizePosition("special", 0, 0), PrizePosition("sixth", 2, 3)),
+    # DB + Seventh
+    (PrizePosition("special", 0, 2), PrizePosition("seventh", 2, 2)),   # Hang tram DB + DV G7_3
+    (PrizePosition("special", 0, 1), PrizePosition("seventh", 2, 2)),
+    (PrizePosition("special", 0, 0), PrizePosition("seventh", 0, 2)),
+    # First + Second
+    (PrizePosition("first", 0, 1), PrizePosition("second", 0, 3)),
+    (PrizePosition("first", 0, 0), PrizePosition("second", 1, 4)),
+    # First + Third
+    (PrizePosition("first", 0, 1), PrizePosition("third", 0, 3)),
+    (PrizePosition("first", 0, 0), PrizePosition("third", 2, 4)),
+    # Second + Third
+    (PrizePosition("second", 0, 1), PrizePosition("third", 0, 3)),
+    (PrizePosition("second", 1, 0), PrizePosition("third", 2, 4)),
+    # Second + Seventh
+    (PrizePosition("second", 0, 1), PrizePosition("seventh", 2, 2)),
+    (PrizePosition("second", 0, 0), PrizePosition("seventh", 0, 2)),
+    # Third + Seventh
+    (PrizePosition("third", 0, 1), PrizePosition("seventh", 2, 2)),
+    (PrizePosition("third", 1, 0), PrizePosition("seventh", 0, 2)),
+    # Third + Fourth
+    (PrizePosition("third", 0, 1), PrizePosition("fourth", 1, 3)),
+    (PrizePosition("third", 2, 0), PrizePosition("fourth", 3, 4)),
+    # Fourth + Seventh
+    (PrizePosition("fourth", 0, 1), PrizePosition("seventh", 2, 2)),
+    # Fifth + Seventh
+    (PrizePosition("fifth", 0, 1), PrizePosition("seventh", 2, 2)),
+    (PrizePosition("fifth", 3, 0), PrizePosition("seventh", 0, 2)),
+    # Sixth + Seventh
+    (PrizePosition("sixth", 0, 1), PrizePosition("seventh", 2, 2)),
+    (PrizePosition("sixth", 1, 0), PrizePosition("seventh", 0, 2)),
+    # Cross giữa các hàng chữ số (trong cùng 1 giải)
+    (PrizePosition("special", 0, 0), PrizePosition("special", 0, 4)),
+    (PrizePosition("special", 0, 1), PrizePosition("special", 0, 2)),
+    (PrizePosition("first",    0, 0), PrizePosition("first",    0, 4)),
+    (PrizePosition("second",   0, 0), PrizePosition("second",   0, 4)),
+    (PrizePosition("third",    0, 0), PrizePosition("third",    0, 4)),
+    (PrizePosition("seventh",  0, 0), PrizePosition("seventh",  2, 2)),
+    (PrizePosition("seventh",  1, 0), PrizePosition("seventh",  3, 2)),
+    # Gap giữa 2 giải cùng loại
+    (PrizePosition("second", 0, 2), PrizePosition("second", 1, 2)),
+    (PrizePosition("third",  0, 2), PrizePosition("third",  3, 2)),
+    (PrizePosition("fifth",  0, 1), PrizePosition("fifth",  3, 1)),
+    (PrizePosition("seventh", 0, 0), PrizePosition("seventh", 3, 2)),
+]
+
+
+def cross_position_combo_score(
+    results: List[LotteryResult],
+    candidate: str,
+    target_name: str,
+    lookback: int = 90,
+) -> float:
+    """Diem cross-position: candidate co the la ket qua ghep 2 vi tri tu 1 ket qua cu.
+
+    Tung ket qua trong lookback, lay 2 vi tri (trai + phai) tu CURATED_POSITION_PAIRS,
+    tao cap 2 chu so, kiem tra cap nay co xuat hien trong loto2 cua ngay hom sau hay khong.
+
+    Diem = so lan candidate xuat hien / tong so cap co the trong lookback.
+    """
+    if target_name != "loto2" or len(candidate) != 2:
+        return 0.0
+    if len(results) < 3:
+        return 0.0
+
+    window = results[-(lookback + 2):]
+    hits = 0
+    total = 0
+
+    for i in range(len(window) - 1):
+        source_row = window[i]
+        target_row = window[i + 1]
+        target_items_set = set(actual_targets(target_row, target_name))
+
+        for left_pos, right_pos in CURATED_POSITION_PAIRS:
+            combo = _build_cross_combo(source_row, left_pos, right_pos)
+            total += 1
+            if combo == candidate:
+                hits += 1
+
+    return hits / total if total > 0 else 0.0
+
+
+def cross_position_combo_lead_score(
+    results: List[LotteryResult],
+    candidate: str,
+    target_name: str,
+    lookback: int = 90,
+    delay: int = 1,
+) -> float:
+    """Diem cross-position voi do tre delay ngay (1 = hom sau, 2 = 2 ngay sau)."""
+    if target_name != "loto2" or len(candidate) != 2:
+        return 0.0
+    if len(results) < delay + 1:
+        return 0.0
+
+    window = results[-(lookback + delay + 1):]
+    hits = 0
+    total = 0
+
+    for i in range(len(window) - delay):
+        source_row = window[i]
+        target_row = window[i + delay]
+        target_items_set = set(actual_targets(target_row, target_name))
+
+        for left_pos, right_pos in CURATED_POSITION_PAIRS:
+            combo = _build_cross_combo(source_row, left_pos, right_pos)
+            total += 1
+            if combo == candidate:
+                hits += 1
+
+    return hits / total if total > 0 else 0.0

@@ -1,0 +1,3 @@
+Rows: 5896, 01/01/2010 -> 10/06/2026
+1 signal: 5866 test days in 5300.4s
+Est 33 signals: 174912s = 2915.2min

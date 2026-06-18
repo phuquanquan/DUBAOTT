@@ -1,0 +1,21 @@
+Load+sort: 0.5s
+Test indices: 587
+  200/587: 4.1s
+  400/587: 16.7s
+Setup (freq cache + actuals): 32.1s
+Testing signal: touch...
+  day 0/587: 0.2s
+  day 100/587: 191.6s
+  day 100/587: 198.6s
+  day 200/587: 833.5s
+  day 200/587: 890.4s
+  day 300/587: 2120.6s
+  day 300/587: 2201.7s
+  day 400/587: 3740.2s
+  day 400/587: 4216.4s
+  day 500/587: 5737.2s
+  day 500/587: 6143.7s
+touch: 587 hits=330, total=8072.4s
+DONE
+touch: 587 hits=330, total=8726.4s
+DONE

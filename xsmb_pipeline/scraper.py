@@ -25,7 +25,7 @@ def fetch_html(url: str) -> str:
         with urlopen(request, timeout=25) as response:
             return response.read().decode("utf-8", errors="ignore")
     except (HTTPError, URLError) as exc:
-        raise FetchError(f"Không tải được URL: {url}") from exc
+        raise FetchError(f"Khong tai duoc URL: {url}") from exc
 
 
 def clean_html(html: str) -> str:
@@ -36,41 +36,54 @@ def clean_html(html: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
-def extract_page_date(html: str) -> Optional[str]:
-    match = re.search(r"(\d{2}/\d{2}/\d{4})", html)
+def extract_page_date(text: str) -> Optional[str]:
+    match = re.search(r"(\d{2}/\d{2}/\d{4})", text)
     if match:
         return match.group(1)
-    match = re.search(r"xsmb-(\d{2})-(\d{2})-(\d{4})\.html", html)
-    if match:
-        return f"{match.group(1)}/{match.group(2)}/{match.group(3)}"
     return None
-
-
-def extract_section_numbers(text: str, section: str, count: int, width: int) -> List[str]:
-    match = re.search(section + r"(.*?)(?:G\.[1-7]|Loto|Đầu|Chạm|$)", text)
-    if not match:
-        raise ParseError(f"Không tìm thấy khu vực giải {section}")
-    chunk = match.group(1)
-    numbers = re.findall(rf"\d{{{width}}}", chunk)
-    if len(numbers) < count:
-        raise ParseError(f"Thiếu dữ liệu cho giải {section}: cần {count}, có {len(numbers)}")
-    return numbers[:count]
 
 
 def parse_result(html: str, fallback_date: str, region: str = "XSMB") -> LotteryResult:
     text = clean_html(html)
     date = extract_page_date(text) or fallback_date
+
+    # Parse tuan tu theo thu tu giai: DB, G1, G2, G3, G4, G5, G6, G7
+    # Tim vi tri bat dau cua tung giai
+    db_pattern = r"G\.(?:DB|ĐB|ÐB|DB)\s+(\d{5})"
+    g1_pattern = r"G\.1\s+(\d{5})"
+    g2_pattern = r"G\.2\s+(\d{5})\s+(\d{5})"
+    g3_pattern = r"G\.3\s+(\d{5})\s+(\d{5})\s+(\d{5})\s+(\d{5})\s+(\d{5})\s+(\d{5})"
+    g4_pattern = r"G\.4\s+(\d{4})\s+(\d{4})\s+(\d{4})\s+(\d{4})"
+    g5_pattern = r"G\.5\s+(\d{4})\s+(\d{4})\s+(\d{4})\s+(\d{4})\s+(\d{4})\s+(\d{4})"
+    g6_pattern = r"G\.6\s+(\d{3})\s+(\d{3})\s+(\d{3})"
+    g7_pattern = r"G\.7\s+(\d{2})\s+(\d{2})\s+(\d{2})\s+(\d{2})"
+
+    def match_group(pattern: str, count: int, name: str) -> List[str]:
+        m = re.search(pattern, text)
+        if not m:
+            raise ParseError(f"Khong tim thay giai {name}")
+        return list(m.groups())
+
+    special = match_group(db_pattern, 1, "DB")[0]
+    first = match_group(g1_pattern, 1, "G1")
+    second = match_group(g2_pattern, 2, "G2")
+    third = match_group(g3_pattern, 6, "G3")
+    fourth = match_group(g4_pattern, 4, "G4")
+    fifth = match_group(g5_pattern, 6, "G5")
+    sixth = match_group(g6_pattern, 3, "G6")
+    seventh = match_group(g7_pattern, 4, "G7")
+
     return LotteryResult(
         date=date,
         region=region,
-        special=extract_section_numbers(text, "G.ĐB", 1, 5)[0],
-        first=extract_section_numbers(text, "G.1", 1, 5),
-        second=extract_section_numbers(text, "G.2", 2, 5),
-        third=extract_section_numbers(text, "G.3", 6, 5),
-        fourth=extract_section_numbers(text, "G.4", 4, 4),
-        fifth=extract_section_numbers(text, "G.5", 6, 4),
-        sixth=extract_section_numbers(text, "G.6", 3, 3),
-        seventh=extract_section_numbers(text, "G.7", 4, 2),
+        special=special,
+        first=first,
+        second=second,
+        third=third,
+        fourth=fourth,
+        fifth=fifth,
+        sixth=sixth,
+        seventh=seventh,
     )
 
 
@@ -81,15 +94,18 @@ def build_url(date: str) -> str:
 
 def extract_daily_urls(html: str) -> List[str]:
     urls = re.findall(r"(?:https://xosodaiphat\.com)?/xsmb-(\d{2})-(\d{2})-(\d{4})\.html", html)
-    return [f"{day}/{month}/{year}" for day, month, year in urls]
+    result = []
+    for day, month, year in urls:
+        result.append(day + chr(47) + month + chr(47) + year)
+    return result
 
 
 def discover_dates_from_range(days: int) -> List[str]:
     if days not in RANGE_URLS:
-        raise ValueError("days chỉ hỗ trợ các mốc có sẵn trong RANGE_URLS")
+        raise ValueError("days chi ho tro cac moc co san trong RANGE_URLS")
     html = fetch_html(RANGE_URLS[days])
     dates = []
-    seen = set()
+    seen: set[str] = set()
     for date in extract_daily_urls(html):
         if date not in seen:
             seen.add(date)
@@ -114,7 +130,7 @@ def crawl_range(days: int) -> List[LotteryResult]:
 
 def bootstrap_history(range_windows: Sequence[int]) -> List[LotteryResult]:
     dates: List[str] = []
-    seen = set()
+    seen: set[str] = set()
     for window in range_windows:
         for date in discover_dates_from_range(window):
             if date not in seen:
